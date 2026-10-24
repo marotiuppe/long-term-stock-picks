@@ -1,0 +1,42 @@
+/* Print / Save as PDF for the stock page (linked with media="print"). Hides app chrome, forces black on white, keeps cards whole. */
+@page{margin:14mm}
+:root:root:root{
+ color-scheme:light;
+ --bg:#fff!important;--card:#fff!important;--subtle:#f3f4f6!important;--border:#cfd3da!important;--border-strong:#8a93a3!important;
+ --text:#000!important;--text-muted:#333!important;--accent-text:#000!important;
+ --gain-text:#00553f!important;--loss-text:#9a2b0e!important;--warning-text:#6b4000!important;
+ --shadow:none!important;--shadow-pop:none!important}
+html,body{background:#fff!important;color:#000!important}
+body{font-size:11pt}
+/* app shell and controls */
+.side,.topbar,.bnav,.status,.search,.sheet,.sheet-scrim,.pop,.fab,.skip,.seg,#tabs,.ph-act,.share,.share-m,.share-toast,.gl-pop,
+.pc-seg,.pc-tb,.pc-bar,.pc-tools,.chart-tb,[class*="toolbar"],#rf,#theme,
+button:not(.gl-t),input,select,textarea,form{display:none!important}
+.card button:not(.gl-t),.dsec button:not(.gl-t),.pc button{display:none!important}
+.gl-t{border:0!important;background:none!important;color:#000!important;font:inherit}
+.shell{display:block!important}
+.col{display:block}
+.w{max-width:none;padding:0}
+#app{display:block}
+#app>*{margin:0 0 12pt}
+.grid{display:block}
+.grid>*,.dcol,.span-8,.span-4{width:auto!important;display:block}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8pt}
+/* cards flat and whole */
+.card,.dsec,.kpi{box-shadow:none!important;border:1px solid #cfd3da!important;background:#fff!important;break-inside:avoid;page-break-inside:avoid;margin-bottom:10pt}
+.dsec{padding:8pt}
+h1,h2,h3{break-after:avoid;color:#000}
+/* charts at full width */
+.pc,.cw,[id^="cw"],canvas,svg:not(.ic){max-width:100%!important}
+canvas{width:100%!important;height:auto!important}
+.cw,.pc{width:100%!important;break-inside:avoid}
+.ic{display:none}
+/* tables stay readable */
+table{width:100%;border-collapse:collapse;font-size:10pt}
+th,td{border-bottom:1px solid #cfd3da;padding:3pt 5pt;color:#000}
+tr{break-inside:avoid}
+a{color:#000;text-decoration:none}
+details>summary{list-style:none}
+/* footer: URL, date and disclaimer */
+.print-only{display:block!important;margin-top:14pt;padding-top:6pt;border-top:1px solid #000;font-size:9pt;color:#000}
+.print-only p{margin:2pt 0}

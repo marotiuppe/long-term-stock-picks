@@ -1,0 +1,41 @@
+# Runtime data: user accounts, Groww encryption key, saved lists, logs, price cache.
+# Never commit these: they hold real user data and the key that protects saved Groww credentials.
+app/data/
+app/cache/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak-v1
+*.key
+*.pkl
+*.log
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+render.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node (the JS tests use Node only if present)
+node_modules/
+
+# Editor, OS and local Claude Code files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.claude/settings.local.json
+.claude/.pytest_cache/

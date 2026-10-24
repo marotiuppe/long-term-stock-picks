@@ -1,0 +1,54 @@
+/* chart.css: price chart (chart.js on ECharts). Loaded after components.css, so these rules win over the older pc-* ones. */
+.pc{position:relative;margin:0 0 var(--sp-1);min-width:0}
+.pc-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px var(--sp-3)}
+.pc-fsb{margin-left:auto;align-self:center;min-height:36px;font-size:var(--fs-12)}
+.pc-tools{display:flex;flex-direction:column}
+.pc-bar{display:flex;gap:var(--sp-2) var(--sp-3);flex-wrap:wrap;align-items:center;margin:var(--sp-3) 0 var(--sp-2)}
+.pc-seg button[data-k^="z:"]{min-width:36px}
+.pc-plot{position:relative;height:clamp(320px,52vw,460px);margin-top:var(--sp-1)}
+.pc-cv{position:absolute;inset:0;touch-action:pan-y;-webkit-tap-highlight-color:transparent;border-radius:var(--radius-sm)}
+.pc-cv:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pc-note[hidden],.pc-table[hidden]{display:none}
+.pc-disc{font-size:var(--fs-12);margin:var(--sp-2) 0 0}
+.pc-table{margin-top:var(--sp-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* tooltip (rendered by ECharts inside the chart box, confined to it) */
+.pc-tt{pointer-events:none;max-width:min(240px,calc(100vw - 32px))}
+.pc-tt .th{padding:var(--sp-2) var(--sp-3) 0;color:var(--text-muted);font-size:var(--fs-12)}
+.pc-tt .r{display:flex;justify-content:space-between;gap:var(--sp-4);padding:0 var(--sp-3);line-height:1.55;font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.pc-tt .r:last-child{padding-bottom:var(--sp-2)}
+.pc-tt .r span{color:var(--text-muted)}.pc-tt .r b{font-weight:600}
+/* legend keys */
+.leg i.dash.up{border-top-color:var(--gain-text)}.leg i.dash.dn{border-top-color:var(--loss-text)}.leg i.dash.tx{border-top-color:var(--text)}
+.leg i.dot{height:0;background:none;border-top:2px dotted var(--pc-blue)}
+.leg i.tri{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid var(--ac);background:none;border-radius:0}
+.leg i.tri.dn{border-bottom:0;border-top:9px solid var(--pc-blue)}
+html.pc-fs-lock,html.pc-fs-lock body{overflow:hidden}
+
+/* full screen: native Fullscreen API where it exists, otherwise this fixed overlay (iOS Safari). Above the app shell's bars. */
+.pc.pc-full{position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;gap:var(--sp-2);margin:0;background:var(--card);
+  padding:max(var(--sp-3),env(safe-area-inset-top)) max(var(--sp-4),env(safe-area-inset-right)) max(var(--sp-3),env(safe-area-inset-bottom)) max(var(--sp-4),env(safe-area-inset-left));overflow:auto}
+.pc-full .pc-plot{flex:1 1 auto;height:auto;min-height:220px;margin:0}
+.pc-full .pc-cv{touch-action:none}
+.pc-full .pc-disc,.pc-full .pc-table{display:none}
+.pc-full .pc-bar{margin:0 0 var(--sp-2)}
+@media(max-width:768px){
+  .pc-seg button{min-width:40px}
+  .pc-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:calc(var(--sp-4) * -1);padding-right:var(--sp-4)}
+  .pc-bar::-webkit-scrollbar{display:none}
+  .pc-bar .pc-seg{flex:none}
+  .pc-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.pc-chips::-webkit-scrollbar{display:none}.pc-chips .chip{flex:none}
+  .pc-fsb{min-height:40px;min-width:40px}
+  /* full screen: chart on top, toolbar at the bottom within thumb reach */
+  .pc-full .pc-head{order:0}.pc-full .pc-note{order:1}.pc-full .pc-plot{order:2}.pc-full .leg{order:3;margin-top:0}.pc-full .pc-tools{order:4}
+  .pc-full .pc-bar{margin-right:0;padding-right:0}
+}
+/* landscape phones: little height, so compact the header and run the toolbar in one scrolling row */
+@media(orientation:landscape) and (max-height:520px){
+  .pc-full{gap:var(--sp-1)}
+  .pc-full .pc-px{font-size:var(--fs-20)}.pc-full .pc-as,.pc-full .leg{display:none}
+  .pc-full .pc-head{order:0}.pc-full .pc-plot{order:2;min-height:140px}.pc-full .pc-tools{order:4;flex-direction:row;gap:var(--sp-3);overflow-x:auto;scrollbar-width:none}
+  .pc-full .pc-tools::-webkit-scrollbar{display:none}
+  .pc-full .pc-bar,.pc-full .pc-chips{flex-wrap:nowrap;flex:none;margin:0;padding:0;overflow:visible}
+}
+@media(prefers-reduced-motion:reduce){.pc *{transition:none!important}}

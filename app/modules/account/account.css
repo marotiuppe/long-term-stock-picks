@@ -1,0 +1,18 @@
+/* Account page: guest sign-in/sign-up tabs and the signed-in cards. Reuses .card, .lf*, .seg, .tab and .btn from components.css. */
+.ac{display:grid;gap:var(--sp-4);max-width:640px}
+.ac .lf-in[type=password],.ac .lf-in[type=text]{font-variant-numeric:tabular-nums}
+.ac-pw{display:flex;gap:var(--sp-2)}.ac-pw .lf-in{flex:1;min-width:0}.ac-pw .btn{flex:none;min-width:72px}
+.ac-rules{list-style:none;margin:0;padding:0;display:grid;gap:2px;font-size:var(--fs-12);color:var(--text-muted)}
+.ac-rules li::before{content:"\25CB";display:inline-block;width:1.4em}
+.ac-rules li.ok{color:var(--gain-text)}.ac-rules li.ok::before{content:"\2713"}
+.ac-chk{display:flex;gap:var(--sp-2);align-items:center;min-height:40px;font-size:var(--fs-14)}
+.ac-chk input{width:20px;height:20px;flex:none}
+.ac-kv{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-3);flex-wrap:wrap;padding:var(--sp-3) 0;border-top:1px solid var(--border)}
+.ac-kv:first-child{border-top:0;padding-top:0}
+.ac-kv b{display:block}.ac-kv small{color:var(--text-muted);font-size:var(--fs-12)}
+.ac-sub{margin:var(--sp-4) 0 var(--sp-2);font-size:var(--fs-14)}
+.ac-note{padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-sm);background:var(--subtle);color:var(--text-muted);font-size:var(--fs-14)}
+.ac-sk{height:20px;border-radius:6px;background:var(--subtle);margin:var(--sp-3) 0;animation:acp 1.2s ease-in-out infinite}
+@keyframes acp{50%{opacity:.5}}
+@media(prefers-reduced-motion:reduce){.ac-sk{animation:none}}
+.ac a.ac-del{color:var(--loss-text)}

@@ -1,0 +1,73 @@
+/* Fresh Teal design system. Three layers: primitive (raw values) > semantic (purpose, switches with theme) > component (per-part).
+   Everything below the token section reads semantic or component tokens only. Light is the default, dark follows
+   prefers-color-scheme unless the user picked a theme (html[data-theme]). */
+
+/* ---------- 1. primitive tokens ---------- */
+:root{
+ --teal-500:#00B386;--teal-600:#009C75;--teal-700:#007A5C;--teal-800:#00674D;--teal-50:#E6F7F2;
+ --teal-d-400:#00C896;--teal-d-300:#19D4A5;--teal-d-900:#0E2A25;
+ --coral-500:#EB5B3C;--coral-700:#B93815;--coral-50:#FDEEEA;--coral-d-400:#FF7A5C;--coral-d-900:#3A1F1A;
+ --amber-500:#F5A524;--amber-800:#8A5300;--amber-50:#FEF3DC;--amber-d-900:#3A2B10;
+ --ink-900:#1B1F2A;--ink-500:#6B7280;--ink-400:#8A93A3;--ink-200:#E6E9EF;--ink-100:#F1F3F7;--ink-50:#F8F9FB;
+ --ink-d-50:#E8ECF1;--ink-d-400:#9AA4B2;--ink-d-500:#66717F;--ink-d-700:#2A3340;--ink-d-800:#212935;--ink-d-900:#1A2029;--ink-d-950:#0F1419;
+ --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;--sp-7:48px;
+ --fs-12:12px;--fs-14:14px;--fs-16:16px;--fs-20:20px;--fs-28:28px;
+ --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+ --radius:12px;--radius-sm:8px;--radius-pill:999px;
+ --t-fast:150ms;--t-base:200ms;--ease:cubic-bezier(.2,.7,.2,1);
+}
+
+/* ---------- 2. semantic tokens: light ---------- */
+:root,:root[data-theme=light]{
+ color-scheme:light;
+ --accent:var(--teal-500);--accent-hover:var(--teal-600);--accent-soft:var(--teal-50);
+ --accent-text:var(--teal-700);      /* teal that passes AA as text and as a graphic on white (5.3:1); --accent itself is 2.7:1 */
+ --bg:var(--ink-50);--card:#FFFFFF;--subtle:var(--ink-100);--border:var(--ink-200);--border-strong:var(--ink-400);
+ --text:var(--ink-900);--text-muted:var(--ink-500);
+ --gain:var(--teal-500);--gain-text:var(--teal-700);--loss:var(--coral-500);--loss-text:var(--coral-700);--loss-soft:var(--coral-50);
+ --warning:var(--amber-500);--warning-text:var(--amber-800);--warning-soft:var(--amber-50);
+ --neutral-series:#64748B;--neutral-series-2:#94A3B8;
+ --shadow:0 1px 3px rgba(16,24,40,.06);--shadow-pop:0 8px 24px rgba(16,24,40,.12);
+ --btn-bg:var(--teal-700);--btn-bg-hover:var(--teal-800);--on-btn:#FFFFFF;
+ --scrim:rgba(15,20,25,.4);
+}
+/* ---------- semantic tokens: dark (same names, so the components never change) ---------- */
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+ color-scheme:dark;
+ --accent:var(--teal-d-400);--accent-hover:var(--teal-d-300);--accent-soft:var(--teal-d-900);--accent-text:var(--teal-d-400);
+ --bg:var(--ink-d-950);--card:var(--ink-d-900);--subtle:var(--ink-d-800);--border:var(--ink-d-700);--border-strong:var(--ink-d-500);
+ --text:var(--ink-d-50);--text-muted:var(--ink-d-400);
+ --gain:var(--teal-d-400);--gain-text:var(--teal-d-400);--loss:var(--coral-d-400);--loss-text:var(--coral-d-400);--loss-soft:var(--coral-d-900);
+ --warning:var(--amber-500);--warning-text:var(--amber-500);--warning-soft:var(--amber-d-900);
+ --neutral-series:#94A3B8;--neutral-series-2:#64748B;
+ --shadow:0 1px 3px rgba(0,0,0,.35);--shadow-pop:0 8px 24px rgba(0,0,0,.5);
+ --btn-bg:var(--teal-d-400);--btn-bg-hover:var(--teal-d-300);--on-btn:#04201A;--scrim:rgba(0,0,0,.6);
+}}
+:root[data-theme=dark]{
+ color-scheme:dark;
+ --accent:var(--teal-d-400);--accent-hover:var(--teal-d-300);--accent-soft:var(--teal-d-900);--accent-text:var(--teal-d-400);
+ --bg:var(--ink-d-950);--card:var(--ink-d-900);--subtle:var(--ink-d-800);--border:var(--ink-d-700);--border-strong:var(--ink-d-500);
+ --text:var(--ink-d-50);--text-muted:var(--ink-d-400);
+ --gain:var(--teal-d-400);--gain-text:var(--teal-d-400);--loss:var(--coral-d-400);--loss-text:var(--coral-d-400);--loss-soft:var(--coral-d-900);
+ --warning:var(--amber-500);--warning-text:var(--amber-500);--warning-soft:var(--amber-d-900);
+ --neutral-series:#94A3B8;--neutral-series-2:#64748B;
+ --shadow:0 1px 3px rgba(0,0,0,.35);--shadow-pop:0 8px 24px rgba(0,0,0,.5);
+ --btn-bg:var(--teal-d-400);--btn-bg-hover:var(--teal-d-300);--on-btn:#04201A;--scrim:rgba(0,0,0,.6);
+}
+
+/* ---------- 3. component tokens ---------- */
+:root{
+ --sb-w:240px;--sb-w-rail:72px;--tb-h:56px;--bn-h:60px;--maxw:1280px;--pad:var(--sp-5);
+ --card-pad:var(--sp-5);--row-h:56px;--ctl-h:40px;--chip-h:36px;
+ --card-bg:var(--card);--card-border:var(--border);--card-radius:var(--radius);--card-shadow:var(--shadow);
+ --input-bg:var(--card);--input-border:var(--border-strong);--input-radius:var(--radius-sm);
+ --nav-fg:var(--text-muted);--nav-fg-active:var(--accent-text);--nav-bg-active:var(--accent-soft);
+ --th-bg:var(--bg);--row-hover:var(--subtle);
+ /* chart tokens (read by chart.js and the forecast chart through var(--...)) */
+ --chart-ink:var(--text);--chart-muted:var(--text-muted);--chart-grid:var(--border);
+ --chart-main:var(--accent-text);--chart-band-1:color-mix(in srgb,var(--accent) 12%,transparent);--chart-band-2:color-mix(in srgb,var(--accent) 24%,transparent);
+ /* names kept so the SVG built in script keeps working */
+ --tx:var(--chart-ink);--mu:var(--chart-muted);--bd:var(--chart-grid);--ac:var(--chart-main);--up:var(--gain-text);--dn:var(--loss-text);
+ --am:var(--warning-text);--s200:var(--neutral-series-2);--band1:var(--chart-band-1);--band2:var(--chart-band-2);
+ --pc-blue:var(--neutral-series);--pc-amber:var(--warning-text);
+}

@@ -1,0 +1,16 @@
+const assert = require('assert');
+const p = require('../modules/portfolio/portfolio.js');
+assert.strictEqual(p.signedPct(-3.456), '-3.5%');
+assert.strictEqual(p.signedPct(null), '-');
+assert.strictEqual(p.signedRupee(1234.5), '+₹1,235');
+assert.strictEqual(p.tone(-1), 'dn');
+assert.deepStrictEqual(p.warnings({ stop_breached: true, call: 'Downtrend' }), ['Stop-loss breached', 'Downtrend']);
+assert.deepStrictEqual(p.warnings({ call: 'Buy' }), []);
+assert.strictEqual(p.parseHoldingForm('tcs.ns', '10', '3500').symbol, 'TCS');
+assert.ok(p.parseHoldingForm('', '1', '1').error);
+assert.ok(p.parseHoldingForm('TCS', '1.5', '1').error);
+assert.ok(p.parseHoldingForm('TCS', '1', '0').error);
+const t = p.totals([{ invested: 100, value: 110 }, { invested: 100, value: 90 }]);
+assert.strictEqual(t.pnl, 0);
+assert.strictEqual(p.syncedLabel(null), 'not yet');
+console.log('portfolio ui helpers ok');

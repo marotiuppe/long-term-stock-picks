@@ -1,0 +1,14 @@
+import os, sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from modules.stocks import lists
+
+
+@pytest.fixture(autouse=True)
+def isolated_lists(tmp_path, monkeypatch):
+    """No test may read or write the owner's real app/data/lists.json or the saved scan in app/cache."""
+    monkeypatch.setattr(lists, "PATH", str(tmp_path / "lists.json"))
+    import server
+    monkeypatch.setattr(server, "scan_file", lambda: str(tmp_path / "scan-latest.pkl"))

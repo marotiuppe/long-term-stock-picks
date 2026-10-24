@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: stock-picks
+    runtime: python
+    plan: starter            # a persistent disk needs a paid plan
+    numInstances: 1          # the in-memory rate limiter and scan state need a single instance
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd app && python server.py
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: HOST
+        value: 0.0.0.0
+      - key: STOCKPICKS_SECURE_COOKIES
+        value: "1"
+      - key: DATABASE_URL    # your PostgreSQL URL; enter it in the Render dashboard
+        sync: false
+      - key: STOCKPICKS_DATA_DIR
+        value: /var/data
+    disk:
+      name: stockpicks-data
+      mountPath: /var/data
+      sizeGB: 2

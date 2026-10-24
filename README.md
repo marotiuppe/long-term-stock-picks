@@ -1,4 +1,4 @@
-# Stock Picks: long-term NSE picker
+# long-term-stock-picks
 
 A buy-and-hold stock and ETF picker for the Indian market (NSE), with a portfolio tracker, alerts and a plain-language "why" for every pick. Python standard-library server, no framework, no day trading.
 
@@ -7,6 +7,11 @@ A local page that lists liquid NSE shares and ETFs to buy and hold for 10 days, 
 **It has no proven edge.** In our own back-test the buy-grade picks rose about 57% of the time at 1 month, against about 56% for any stock. Treat every number as a historical base rate, never as a promise of profit. This is an educational tool, not investment advice. Planned work is in [ROADMAP.md](ROADMAP.md).
 
 ## Run it
+
+```
+git clone https://github.com/marotiuppe/long-term-stock-picks.git
+cd long-term-stock-picks
+```
 
 Needs Python 3 (tested on 3.14). Install the packages once: `pip install -r requirements.txt`.
 The stock scan itself uses only what ships with Python; the packages are for **Sync from Groww** (`cryptography` and Groww's `growwapi`, which also installs `pandas` and others, so it is a large download).
@@ -66,7 +71,7 @@ All settings are environment variables. None is required to run locally.
 
 `render.yaml` in the repo root describes the service.
 
-1. Push the repo to GitHub (keep it private).
+1. The code is at `marotiuppe/long-term-stock-picks` on GitHub (keep it private).
 2. In Render choose **New, Blueprint**, pick the repo and apply it. It creates one web service (Python, `pip install -r requirements.txt`, start with `cd app && python server.py`) and a 2 GB disk mounted at `/var/data`.
 3. When asked, enter `DATABASE_URL` (your PostgreSQL URL; on Render use the database's Internal URL).
 4. Wait a few minutes after the first start: the first scan downloads 5 years of prices.

@@ -1,11 +1,12 @@
 services:
   - type: web
-    name: stock-picks
+    name: long-term-stock-picks
     runtime: python
     plan: starter            # a persistent disk needs a paid plan
     numInstances: 1          # the in-memory rate limiter and scan state need a single instance
     buildCommand: pip install -r requirements.txt
     startCommand: cd app && python server.py
+    autoDeployTrigger: checksPass   # deploy on a push to the branch only after the GitHub Actions CI passes
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION

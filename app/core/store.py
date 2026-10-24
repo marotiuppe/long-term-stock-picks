@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import threading
 import time
+import zlib
 
 from modules.portfolio import positions
 from modules.portfolio import rules
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS notes(user_id TEXT NOT NULL, symbol TEXT NOT NULL, te
 CREATE TABLE IF NOT EXISTS price_alerts(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, symbol TEXT NOT NULL,
   kind TEXT NOT NULL, value REAL NOT NULL, created TEXT, last_fired TEXT, active INTEGER NOT NULL DEFAULT 1);
 CREATE INDEX IF NOT EXISTS price_alerts_user ON price_alerts(user_id, symbol);
+CREATE TABLE IF NOT EXISTS price_cache(symbol TEXT PRIMARY KEY, fetched REAL NOT NULL, why TEXT, quote TEXT, bars BLOB);
 """
 NOTE_MAX = 5000
 PRICE_ALERT_MAX = 20
@@ -599,6 +601,79 @@ class Store:
 
     def delete_price_alert(self, uid, alert_id):
         return self._run("DELETE FROM price_alerts WHERE user_id=? AND id=?", (str(uid), int(alert_id))).rowcount > 0
+
+    # price cache: one row per symbol, shared by every user. A stock that passes the scan's quality filter keeps its whole history in
+    # `bars` (zlib JSON); a filtered-out one keeps only `why` and its last-close `quote`. Yahoo adjusts old closes after a dividend or split,
+    # so a symbol's history is always replaced whole, never appended to.
+    def price_save(self, items, now=None):
+        """items: {symbol: bars list of (date, high, low, close, adj, volume) | slim quote dict}."""
+        rows = []
+        for sym, v in items.items():
+            if isinstance(v, dict):
+                rows.append((sym, now or time.time(), v.get("why"), json.dumps(v), None))
+            elif v:
+                payload = [[r[0].isoformat(), r[1], r[2], r[3], r[4], r[5]] for r in v]
+                rows.append((sym, now or time.time(), None, None, zlib.compress(json.dumps(payload).encode())))
+        if not rows:
+            return 0
+        with self._lock:
+            try:
+                self.db.executemany("INSERT INTO price_cache(symbol, fetched, why, quote, bars) VALUES(?,?,?,?,?) "
+                                    "ON CONFLICT(symbol) DO UPDATE SET fetched=excluded.fetched, why=excluded.why, quote=excluded.quote, bars=excluded.bars", rows)
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+        return len(rows)
+
+    @staticmethod
+    def _bars(blob):
+        return [(datetime.date.fromisoformat(x[0]), x[1], x[2], x[3], x[4], x[5]) for x in json.loads(zlib.decompress(bytes(blob)))]
+
+    def price_load(self, fetched_after=None):
+        """{symbol: bars | slim dict} for rows fetched at or after the given time (any age when None). Holds every history in memory:
+        the scan uses price_index and price_one instead."""
+        q, a = "SELECT symbol, quote, bars FROM price_cache", ()
+        if fetched_after is not None:
+            q, a = q + " WHERE fetched>=?", (float(fetched_after),)
+        out = {}
+        for r in self._all(q, a):
+            try:
+                if r["bars"] is not None:
+                    out[r["symbol"]] = self._bars(r["bars"])
+                elif r["quote"]:
+                    out[r["symbol"]] = json.loads(r["quote"])
+            except Exception:
+                continue   # one unreadable row is fetched again, it must not fail the load
+        return out
+
+    def price_index(self, fetched_after=None):
+        """Like price_load without the histories: {symbol: slim dict, or True when the symbol has bars stored}. Small enough for a
+        512 MB host; fetch a history with price_one."""
+        q, a = "SELECT symbol, quote, CASE WHEN bars IS NULL THEN 0 ELSE 1 END AS has FROM price_cache", ()
+        if fetched_after is not None:
+            q, a = q + " WHERE fetched>=?", (float(fetched_after),)
+        out = {}
+        for r in self._all(q, a):
+            try:
+                if r["has"]:
+                    out[r["symbol"]] = True
+                elif r["quote"]:
+                    out[r["symbol"]] = json.loads(r["quote"])
+            except Exception:
+                continue
+        return out
+
+    def price_one(self, symbol):
+        """One symbol's bars (oldest first), or None when it has none stored or the row is unreadable."""
+        r = self._all("SELECT bars FROM price_cache WHERE symbol=?", (str(symbol),))
+        try:
+            return self._bars(r[0]["bars"]) if r and r[0]["bars"] is not None else None
+        except Exception:
+            return None
+
+    def price_clear(self):
+        self._run("DELETE FROM price_cache")
 
     # account
     def export_user(self, uid):

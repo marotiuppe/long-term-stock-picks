@@ -8,7 +8,7 @@ the page is an empirical odds figure, not a promise. The page also shows that me
 import bisect, csv, datetime, glob, io, json, math, os, pickle, re, statistics, threading, time, webbrowser
 import urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -534,6 +534,32 @@ def cache_outdated(cpath, force=False, now=None):
     return os.path.exists(cpath) and (force == "full" or os.path.getmtime(cpath) < last_cutoff(now).timestamp())
 
 
+class LazyBars(dict):
+    """symbol -> bars read from the database only when asked for, so scoring holds one history at a time instead of all of them.
+    The dict keys are the symbols; items() and values() load each history as they are iterated and let it go afterwards."""
+
+    def __init__(self, symbols, load):
+        super().__init__(dict.fromkeys(symbols))
+        self._load = load
+
+    def __getitem__(self, sym):
+        return self._load(sym)
+
+    def items(self):
+        for s in list(dict.keys(self)):
+            rows = self._load(s)
+            if rows:   # an unreadable row is skipped, and fetched again by the next scan
+                yield s, rows
+
+    def values(self):
+        return (rows for _, rows in self.items())
+
+
+def price_db():
+    """The store that holds the price cache, or None to keep it in files (no DATABASE_URL)."""
+    return get_store() if os.environ.get("DATABASE_URL", "").strip() else None
+
+
 def backfill_quotes(data):
     """A scan saved before last closes were kept has no 'quotes'. Build them from the newest saved price download so holdings the scan
     filters out are valued straight away, without waiting for a new scan."""
@@ -541,6 +567,8 @@ def backfill_quotes(data):
         return
     quotes = {}
     try:
+        if price_db():
+            raise OSError("price cache is in the database")   # a current scan always carries its quotes; nothing to rebuild from files
         files = sorted(glob.glob(os.path.join(CACHE_DIR, "rows-*.pkl")))
         res = pickle.load(open(files[-1], "rb")) if files else {}
         scanned, today = {s["symbol"] for s in data.get("stocks", [])}, datetime.date.today()
@@ -621,13 +649,22 @@ def run_scan(force):
         symset = set(syms)
         core = [x for x in syms if info.get(x, {}).get("exchange") != "BSE"]   # the failure check ignores BSE rows
         cpath = os.path.join(CACHE_DIR, f"rows-{today.isoformat()}.pkl")
-        if cache_outdated(cpath, force):
-            os.remove(cpath)   # fetched before today's close (a partial bar), or a full re-download was asked for
-        try:
-            res = pickle.load(open(cpath, "rb")) if os.path.exists(cpath) else {}
-        except Exception:
-            res = {}   # truncated or unreadable cache: download again
+        pdb = price_db()   # prices live in the database when DATABASE_URL is set, in cache/rows-<date>.pkl otherwise
+        if pdb:
+            # a symbol fetched before today's close holds a partial bar, and a full re-download was asked for: fetch those again
+            res = {} if force == "full" else pdb.price_index(last_cutoff().timestamp())
+        else:
+            if cache_outdated(cpath, force):
+                os.remove(cpath)   # fetched before today's close (a partial bar), or a full re-download was asked for
+            try:
+                res = pickle.load(open(cpath, "rb")) if os.path.exists(cpath) else {}
+            except Exception:
+                res = {}   # truncated or unreadable cache: download again
         res = {k: (v if k == "^NSEI" else slim(v, today)) for k, v in res.items()}
+        if pdb and "^NSEI" in res:
+            res["^NSEI"] = pdb.price_one("^NSEI")   # the benchmark's bars are always held in memory
+            if not res["^NSEI"]:
+                del res["^NSEI"]
         todo = [x for x in syms if x not in res]
         fallback = False   # True when Yahoo was unreachable and an older saved scan's prices are being reused
         t0 = time.time()
@@ -636,25 +673,49 @@ def run_scan(force):
             def submit(x):
                 i = info.get(x, {})
                 return ex.submit(fetch, x, i["suffix"], i["yahoo"]) if i.get("suffix") else ex.submit(fetch, x)
-            for fut in as_completed([submit(x) for x in todo]):
-                sym, rows = fut.result()
-                res[sym] = rows if sym == "^NSEI" else slim(rows, today)
-                STATE["done"] += 1
+            queue, pending = iter(todo), set()
+            while True:
+                while len(pending) < 64:   # a bounded window: finished downloads are handled and freed, not queued up in memory
+                    x = next(queue, None)
+                    if x is None:
+                        break
+                    pending.add(submit(x))
+                if not pending:
+                    break
+                finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+                for fut in finished:
+                    sym, rows = fut.result()
+                    v = rows if sym == "^NSEI" else slim(rows, today)
+                    if pdb and v:
+                        pdb.price_save({sym: v})   # saved as it arrives, so a restart (a free host sleeps) resumes where it stopped
+                        if isinstance(v, list) and sym != "^NSEI":
+                            v = True   # the history stays in the database: scoring reads it back one symbol at a time
+                    res[sym] = v
+                    STATE["done"] += 1
         if sum(1 for x in core if res.get(x)) < len(core) / 2:
-            old = older_cache(cpath)   # Yahoo unreachable: serve the newest saved scan data, flagged stale on the page
+            old = None
+            if pdb:
+                old = pdb.price_index()   # Yahoo unreachable: serve the newest saved scan data, flagged stale on the page
+                bench = pdb.price_one("^NSEI")
+                if bench:
+                    old["^NSEI"] = bench
+            else:
+                old = older_cache(cpath)
             if not old:
                 raise RuntimeError("Yahoo Finance is unreachable and there is no saved data yet")
             res, fallback = old, True
-        else:
+        elif not pdb:
             pickle.dump({k: v for k, v in res.items() if v}, open(cpath + ".tmp", "wb"))
             os.replace(cpath + ".tmp", cpath)
         res = {k: v for k, v in res.items() if k in symset}   # drop cached rows of lists that were cleared
         STATE.update(phase="Scoring and forecasting", done=0, total=1)
         nrows = res.pop("^NSEI", None)
-        data, excl, quotes = {}, {"nodata": 0, "thin": 0, "illiquid": 0, "suspect": 0, "stale": 0}, {}
+        data, excl, quotes = (LazyBars((), pdb.price_one) if pdb else {}), {"nodata": 0, "thin": 0, "illiquid": 0, "suspect": 0, "stale": 0}, {}
         for sym, rows in res.items():
             if not rows:
                 excl["nodata"] += 1
+            elif rows is True:   # passes the filter; the history is in the database
+                data[sym] = True
             elif isinstance(rows, dict):   # slimmed: filtered out already
                 if rows["why"] == "stale":
                     excl["stale"] += 1

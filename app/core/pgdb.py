@@ -9,6 +9,7 @@ _SCHEMA_SUBS = [
     (r"INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY"),
     (r"\bREAL\b", "DOUBLE PRECISION"),            # PostgreSQL REAL is 4 bytes: too coarse for prices
     (r"\bINTEGER\b", "BIGINT"),                   # session expiry is epoch seconds
+    (r"BLOB", "BYTEA"),
     (r"username TEXT UNIQUE COLLATE NOCASE", "username TEXT"),
     (r"(CREATE TABLE IF NOT EXISTS alerts\()", r"\1seq BIGSERIAL, "),   # stands in for SQLite's rowid
 ]

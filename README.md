@@ -76,7 +76,7 @@ All settings are environment variables. None is required to run locally.
 3. When asked, enter `DATABASE_URL` (your PostgreSQL URL; on Render use the database's Internal URL).
 4. Wait a few minutes after the first start: the first scan downloads 5 years of prices.
 
-Notes: the disk needs a paid plan and still holds the price cache and `groww.key` (the key that protects saved Groww credentials, so losing it means users must re-enter their Groww key). Run a single instance, because scan state and the sign-in rate limiter live in memory. Behind Render's proxy every visitor shares one address for rate limiting.
+Notes: the scan needs about 1 GB of memory, so use the Standard plan (2 GB); the 512 MB Starter plan runs out of memory. The disk needs a paid plan and still holds the price cache and `groww.key` (the key that protects saved Groww credentials, so losing it means users must re-enter their Groww key). Run a single instance, because scan state and the sign-in rate limiter live in memory. Behind Render's proxy every visitor shares one address for rate limiting.
 
 ## Accounts and sign-in
 

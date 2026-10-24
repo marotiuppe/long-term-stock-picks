@@ -117,6 +117,17 @@ def quote_row(rows, why):
     return {"price": round(rows[-1][3], 4), "prev": round(rows[-2][3], 4) if len(rows) > 1 else None, "asof": rows[-1][0].isoformat(), "why": why}
 
 
+def slim(rows, today):
+    """Full history only for stocks that pass the quality filter. The rest, about two thirds of the market, shrink to their last close
+    plus the reason they are filtered out, which is all the scan and the portfolio use of them. Keeps memory and the cache file small."""
+    if not rows or isinstance(rows, dict):
+        return rows
+    if (today - rows[-1][0]).days > 7:
+        return quote_row(rows, "stale")
+    why = passes_quality(rows)
+    return quote_row(rows, why) if why else rows
+
+
 def is_td(d):
     return d.weekday() < 5 and d.isoformat() not in NSE_HOLIDAYS
 
@@ -534,7 +545,13 @@ def backfill_quotes(data):
         res = pickle.load(open(files[-1], "rb")) if files else {}
         scanned, today = {s["symbol"] for s in data.get("stocks", [])}, datetime.date.today()
         for sym, rows in res.items():
-            if sym == "^NSEI" or sym in scanned or not rows or (today - rows[-1][0]).days > 7:
+            if sym == "^NSEI" or sym in scanned or not rows:
+                continue
+            if isinstance(rows, dict):
+                if rows["why"] != "stale" and (today - datetime.date.fromisoformat(rows["asof"])).days <= 7:
+                    quotes[sym] = rows
+                continue
+            if (today - rows[-1][0]).days > 7:
                 continue
             why = passes_quality(rows)
             if why:
@@ -610,6 +627,7 @@ def run_scan(force):
             res = pickle.load(open(cpath, "rb")) if os.path.exists(cpath) else {}
         except Exception:
             res = {}   # truncated or unreadable cache: download again
+        res = {k: (v if k == "^NSEI" else slim(v, today)) for k, v in res.items()}
         todo = [x for x in syms if x not in res]
         fallback = False   # True when Yahoo was unreachable and an older saved scan's prices are being reused
         t0 = time.time()
@@ -620,7 +638,7 @@ def run_scan(force):
                 return ex.submit(fetch, x, i["suffix"], i["yahoo"]) if i.get("suffix") else ex.submit(fetch, x)
             for fut in as_completed([submit(x) for x in todo]):
                 sym, rows = fut.result()
-                res[sym] = rows
+                res[sym] = rows if sym == "^NSEI" else slim(rows, today)
                 STATE["done"] += 1
         if sum(1 for x in core if res.get(x)) < len(core) / 2:
             old = older_cache(cpath)   # Yahoo unreachable: serve the newest saved scan data, flagged stale on the page
@@ -637,6 +655,12 @@ def run_scan(force):
         for sym, rows in res.items():
             if not rows:
                 excl["nodata"] += 1
+            elif isinstance(rows, dict):   # slimmed: filtered out already
+                if rows["why"] == "stale":
+                    excl["stale"] += 1
+                else:
+                    excl[rows["why"]] += 1
+                    quotes[sym] = rows
             elif (today - rows[-1][0]).days > 7:
                 excl["stale"] += 1
             else:
@@ -983,12 +1007,18 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    refresh_holidays()
-    if not (load_scan() and scan_up_to_date()):   # a current saved scan opens instantly, no recompute
-        _last_auto[0] = time.time()
-        start_scan()
-    threading.Thread(target=holiday_watch, args=(threading.Event(),), daemon=True, name="holiday-watch").start()
-    srv = ThreadingHTTPServer((HOST, PORT), H)
+    srv = ThreadingHTTPServer((HOST, PORT), H)   # listen first: a host (Render) wants an open port before the slow start-up work below
+
+    def startup():
+        try:
+            refresh_holidays()
+        except Exception as e:
+            print("holiday check failed:", type(e).__name__, e)
+        if not (load_scan() and scan_up_to_date()):   # a current saved scan opens instantly, no recompute
+            _last_auto[0] = time.time()
+            start_scan()
+        holiday_watch(threading.Event())
+    threading.Thread(target=startup, daemon=True, name="startup").start()
     if HOST == "127.0.0.1":   # local run: open the browser; a server has none
         threading.Timer(0.8, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
     print(f"Stock Picks running at http://{HOST}:{PORT}  (Ctrl+C to stop)")

@@ -2,7 +2,7 @@ services:
   - type: web
     name: long-term-stock-picks
     runtime: python
-    plan: starter            # a persistent disk needs a paid plan
+    plan: standard           # 2 GB RAM: the market scan holds about 650 MB of prices plus scoring; starter (512 MB) runs out of memory
     numInstances: 1          # the in-memory rate limiter and scan state need a single instance
     buildCommand: pip install -r requirements.txt
     startCommand: cd app && python server.py

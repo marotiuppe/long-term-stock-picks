@@ -120,7 +120,7 @@ def quote_row(rows, why):
 def slim(rows, today):
     """Full history only for stocks that pass the quality filter. The rest, about two thirds of the market, shrink to their last close
     plus the reason they are filtered out, which is all the scan and the portfolio use of them. Keeps memory and the cache file small."""
-    if not rows or isinstance(rows, dict):
+    if not rows or isinstance(rows, (dict, bool)):   # already slim, or True: the history is in the database
         return rows
     if (today - rows[-1][0]).days > 7:
         return quote_row(rows, "stale")
@@ -560,6 +560,9 @@ def price_db():
     return get_store() if os.environ.get("DATABASE_URL", "").strip() else None
 
 
+lists.db = price_db   # imported ETF and BSE lists live in the database too when there is one
+
+
 def backfill_quotes(data):
     """A scan saved before last closes were kept has no 'quotes'. Build them from the newest saved price download so holdings the scan
     filters out are valued straight away, without waiting for a new scan."""
@@ -594,7 +597,11 @@ def scan_file():
 
 
 def save_scan():
-    """Keep the finished scan on disk so a restart (or the page) never has to wait for a recompute."""
+    """Keep the finished scan on disk (or in the database) so a restart (or the page) never has to wait for a recompute."""
+    pdb = price_db()
+    if pdb:
+        pdb.blob_put("scan-latest", {"t": STATE["t"], "data": STATE["data"], "detail": dict(DETAIL)})
+        return
     os.makedirs(CACHE_DIR, exist_ok=True)
     tmp = scan_file() + ".tmp"
     with open(tmp, "wb") as f:
@@ -606,10 +613,17 @@ def load_scan():
     """Adopt the saved scan when it is newer than what is in memory (server start, or the 4 pm job finished
     while the server was running). True if it was loaded."""
     try:
-        if not os.path.exists(scan_file()) or os.path.getmtime(scan_file()) <= STATE["t"]:
-            return False
-        saved = pickle.load(open(scan_file(), "rb"))
-        if not saved.get("data") or saved["t"] <= STATE["t"]:
+        pdb = price_db()
+        if pdb:
+            when = pdb.blob_saved("scan-latest")
+            if when is None or when <= STATE["t"]:
+                return False
+            saved = pdb.blob_get("scan-latest")
+        else:
+            if not os.path.exists(scan_file()) or os.path.getmtime(scan_file()) <= STATE["t"]:
+                return False
+            saved = pickle.load(open(scan_file(), "rb"))
+        if not saved or not saved.get("data") or saved["t"] <= STATE["t"]:
             return False
     except Exception:
         return False

@@ -53,3 +53,32 @@ def test_empty_and_unreadable_rows_are_skipped():
 def test_postgres_schema_has_the_price_table_with_bytea():
     sql = " ".join(pgdb.schema_statements(SCHEMA))
     assert "price_cache(symbol TEXT PRIMARY KEY, fetched DOUBLE PRECISION NOT NULL, why TEXT, quote TEXT, bars BYTEA)" in sql
+
+
+def test_blob_roundtrip_and_saved_time():
+    st = Store(":memory:")
+    assert st.blob_saved("scan-latest") is None and st.blob_get("scan-latest") is None
+    st.blob_put("scan-latest", {"t": 5.5, "data": {"stocks": [{"symbol": "TCS", "series": [1, 2]}]}}, now=123.0)
+    assert st.blob_saved("scan-latest") == 123.0
+    assert st.blob_get("scan-latest")["data"]["stocks"][0]["symbol"] == "TCS"
+    st.blob_put("scan-latest", {"t": 6}, now=456.0)   # replaced, not duplicated
+    assert st.blob_saved("scan-latest") == 456.0 and st.blob_get("scan-latest") == {"t": 6}
+
+
+def test_price_index_has_no_bars_and_price_one_reads_one_symbol():
+    st = Store(":memory:")
+    q = {"price": 9.0, "prev": 8.0, "asof": "2026-10-23", "why": "illiquid"}
+    st.price_save({"TCS": bars(), "PENNY": q})
+    assert st.price_index() == {"TCS": True, "PENNY": q}
+    assert st.price_one("TCS") == bars() and st.price_one("PENNY") is None and st.price_one("NOPE") is None
+
+
+def test_imported_lists_live_in_the_database_when_there_is_one(monkeypatch):
+    from modules.stocks import lists
+    st = Store(":memory:")
+    monkeypatch.setattr(lists, "db", lambda: st)
+    assert lists.load() == {}
+    lists.save("etf", [{"symbol": "GOLDBEES", "name": "Gold ETF"}])
+    assert lists.load()["etf"]["count"] == 1 and st.blob_get("lists")["etf"]["rows"][0]["symbol"] == "GOLDBEES"
+    lists.clear("etf")
+    assert lists.load() == {}

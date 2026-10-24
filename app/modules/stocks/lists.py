@@ -15,6 +15,7 @@ SYM_RE = re.compile(r"^[A-Z0-9&-]{1,20}$")
 CODE_RE = re.compile(r"^[0-9]{5,6}$")
 CTRL_RE = re.compile("[\x00-\x1f\x7f-\x9f  ]")
 _lock = threading.Lock()
+db = lambda: None   # server.py points this at the database store when DATABASE_URL is set; None keeps the lists in lists.json
 
 
 def clean_text(v, n=120):
@@ -70,6 +71,10 @@ def validate(kind, rows):
 
 
 def _read():
+    store = db()
+    if store:
+        d = store.blob_get("lists")
+        return d if isinstance(d, dict) else {}
     try:
         d = json.load(open(PATH, encoding="utf-8"))
     except (OSError, ValueError):
@@ -84,6 +89,10 @@ def load():
 
 
 def _write(d):
+    store = db()
+    if store:
+        store.blob_put("lists", d)
+        return
     os.makedirs(os.path.dirname(PATH), exist_ok=True)
     tmp = PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

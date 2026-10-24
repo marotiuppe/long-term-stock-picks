@@ -63,20 +63,24 @@ All settings are environment variables. None is required to run locally.
 |---|---|---|
 | `PORT` | `8765` | Port to listen on (Render sets it) |
 | `HOST` | `127.0.0.1` | Address to bind. Use `0.0.0.0` on a server. A local run opens your browser; any other host does not |
-| `DATABASE_URL` | unset | `postgresql://...` URL. Unset means SQLite at `data/users.db` |
-| `STOCKPICKS_DATA_DIR` | the `app` folder | Folder that holds `data/` (database, Groww key, lists) and `cache/` (prices). Point it at a persistent disk when hosting |
+| `DATABASE_URL` | unset | `postgresql://...` URL. Set: accounts, prices, the scan and imported lists are stored in PostgreSQL. Unset: SQLite at `data/users.db` plus files in `cache/` |
+| `STOCKPICKS_SECRET_KEY` | a key file in `data/` | Fernet key that encrypts saved Groww keys. Set it on a host without a disk |
+| `STOCKPICKS_DATA_DIR` | the `app` folder | Folder that holds `data/` and `cache/`. Only needed to put them on a persistent disk |
 | `STOCKPICKS_SECURE_COOKIES` | unset | `1` sends cookies over HTTPS only |
 
 ## Deploy on Render
 
-`render.yaml` in the repo root describes the service.
+`render.yaml` in the repo root describes the service. It runs on Render's free web service (512 MB RAM, no disk): everything the app saves lives in PostgreSQL, so nothing needs a disk.
 
 1. The code is at `marotiuppe/long-term-stock-picks` on GitHub (keep it private).
-2. In Render choose **New, Blueprint**, pick the repo and apply it. It creates one web service (Python, `pip install -r requirements.txt`, start with `cd app && python server.py`) and a 2 GB disk mounted at `/var/data`.
-3. When asked, enter `DATABASE_URL` (your PostgreSQL URL; on Render use the database's Internal URL).
-4. Wait a few minutes after the first start: the first scan downloads 5 years of prices.
+2. Make a key for the saved Groww credentials, once, and keep it somewhere safe: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. If you lose it, users must enter their Groww key again.
+3. In Render choose **New, Blueprint**, pick the repo and apply it.
+4. When asked, enter `DATABASE_URL` (your PostgreSQL URL; on Render use the database's Internal URL) and `STOCKPICKS_SECRET_KEY` (the key from step 2).
+5. Wait a few minutes after the first start: the first scan downloads 5 years of prices and saves each symbol to the database as it arrives. If the service restarts or sleeps mid-scan, the next scan carries on with the symbols not saved yet.
 
-Notes: the scan needs about 1 GB of memory, so use the Standard plan (2 GB); the 512 MB Starter plan runs out of memory. The disk needs a paid plan and still holds the price cache and `groww.key` (the key that protects saved Groww credentials, so losing it means users must re-enter their Groww key). Run a single instance, because scan state and the sign-in rate limiter live in memory. Behind Render's proxy every visitor shares one address for rate limiting.
+What is stored in PostgreSQL: accounts and portfolios, every symbol's price history (`price_cache`), the finished scan and the imported ETF/BSE lists (`blobs`). Only throwaway files (exchange list downloads, news and fundamentals caches) stay on the instance's disk and are fetched again after a restart.
+
+Free-tier limits: the service sleeps after about 15 minutes without a visit and takes a while to wake; it has a fraction of a CPU, so a full scan is slow (minutes locally, longer there); and Render's free PostgreSQL expires after 30 days, so use a database that does not. The scan keeps one price history in memory at a time and peaks around 260 MB. Run a single instance, because scan state and the sign-in rate limiter live in memory. Behind Render's proxy every visitor shares one address for rate limiting.
 
 ## Accounts and sign-in
 

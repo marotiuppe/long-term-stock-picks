@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS notes(user_id TEXT NOT NULL, symbol TEXT NOT NULL, te
 CREATE TABLE IF NOT EXISTS price_alerts(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, symbol TEXT NOT NULL,
   kind TEXT NOT NULL, value REAL NOT NULL, created TEXT, last_fired TEXT, active INTEGER NOT NULL DEFAULT 1);
 CREATE INDEX IF NOT EXISTS price_alerts_user ON price_alerts(user_id, symbol);
+CREATE TABLE IF NOT EXISTS blobs(name TEXT PRIMARY KEY, saved REAL NOT NULL, value BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS price_cache(symbol TEXT PRIMARY KEY, fetched REAL NOT NULL, why TEXT, quote TEXT, bars BLOB);
 """
 NOTE_MAX = 5000
@@ -669,6 +670,25 @@ class Store:
         r = self._all("SELECT bars FROM price_cache WHERE symbol=?", (str(symbol),))
         try:
             return self._bars(r[0]["bars"]) if r and r[0]["bars"] is not None else None
+        except Exception:
+            return None
+
+    # named JSON documents shared by every user (the finished scan), zlib-compressed
+    def blob_put(self, name, obj, now=None):
+        value = zlib.compress(json.dumps(obj).encode())
+        self._run("INSERT INTO blobs(name, saved, value) VALUES(?,?,?) "
+                  "ON CONFLICT(name) DO UPDATE SET saved=excluded.saved, value=excluded.value", (name, now or time.time(), value))
+
+    def blob_saved(self, name):
+        """When the document was saved (epoch seconds), or None. Cheap: does not read the document."""
+        r = self._all("SELECT saved FROM blobs WHERE name=?", (name,))
+        return r[0]["saved"] if r else None
+
+    def blob_get(self, name):
+        """The document, or None when absent or unreadable."""
+        r = self._all("SELECT value FROM blobs WHERE name=?", (name,))
+        try:
+            return json.loads(zlib.decompress(bytes(r[0]["value"]))) if r else None
         except Exception:
             return None
 

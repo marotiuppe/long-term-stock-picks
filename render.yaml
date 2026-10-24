@@ -2,8 +2,7 @@ services:
   - type: web
     name: long-term-stock-picks
     runtime: python
-    plan: standard           # 2 GB RAM: the market scan holds about 650 MB of prices plus scoring; starter (512 MB) runs out of memory
-    numInstances: 1          # the in-memory rate limiter and scan state need a single instance
+    plan: free               # 512 MB RAM, no disk: prices, the scan and accounts all live in PostgreSQL
     buildCommand: pip install -r requirements.txt
     startCommand: cd app && python server.py
     autoDeployTrigger: checksPass   # deploy on a push to the branch only after the GitHub Actions CI passes
@@ -15,11 +14,7 @@ services:
         value: 0.0.0.0
       - key: STOCKPICKS_SECURE_COOKIES
         value: "1"
-      - key: DATABASE_URL    # your PostgreSQL URL; enter it in the Render dashboard
+      - key: DATABASE_URL        # your PostgreSQL URL; enter it in the Render dashboard
         sync: false
-      - key: STOCKPICKS_DATA_DIR
-        value: /var/data
-    disk:
-      name: stockpicks-data
-      mountPath: /var/data
-      sizeGB: 2
+      - key: STOCKPICKS_SECRET_KEY   # encrypts saved Groww keys; generate once (see README) and keep it
+        sync: false

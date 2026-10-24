@@ -101,6 +101,26 @@ def refresh_holidays():
 HOLIDAY_CHECK_EVERY = 6 * 3600
 
 
+KEEPALIVE_EVERY = 300
+
+
+def keepalive_url():
+    """The address to call to stay awake: KEEPALIVE_URL, else the public address Render gives the service. None when neither is set (a local
+    run). It must be the public address: a free Render service sleeps unless requests arrive through Render's proxy, and localhost does not."""
+    base = (os.environ.get("KEEPALIVE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+    return base + "/health" if base.startswith(("http://", "https://")) else None
+
+
+def keepalive(stop, url, every=KEEPALIVE_EVERY, opener=None):
+    """Calls the service's own /health every few minutes so a free host does not put it to sleep. Never raises."""
+    opener = opener or (lambda u: urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "stockpicks-keepalive"}), timeout=30).read())
+    while not stop.wait(every):
+        try:
+            opener(url)
+        except Exception as e:
+            print("keep-alive failed:", type(e).__name__, e)
+
+
 def holiday_watch(stop, every=HOLIDAY_CHECK_EVERY):
     """Keeps the NSE holiday list current while the server stays up. refresh_holidays only fetches when the list is due (monthly on the
     1st, daily from 1 Dec to 31 Jan, or overdue), so checking every few hours costs nothing on the other days. Never raises."""
@@ -1094,6 +1114,8 @@ if __name__ == "__main__":
             start_scan()
         holiday_watch(threading.Event())
     threading.Thread(target=startup, daemon=True, name="startup").start()
+    if keepalive_url():
+        threading.Thread(target=keepalive, args=(threading.Event(), keepalive_url()), daemon=True, name="keepalive").start()
     if HOST == "127.0.0.1":   # local run: open the browser; a server has none
         threading.Timer(0.8, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
     print(f"Stock Picks running at http://{HOST}:{PORT}  (Ctrl+C to stop)")

@@ -66,6 +66,7 @@ All settings are environment variables. None is required to run locally.
 | `DATABASE_URL` | unset | `postgresql://...` URL. Set: accounts, prices, the scan and imported lists are stored in PostgreSQL. Unset: SQLite at `data/users.db` plus files in `cache/` |
 | `STOCKPICKS_SECRET_KEY` | a key file in `data/` | Fernet key that encrypts saved Groww keys. Set it on a host without a disk |
 | `STOCKPICKS_DATA_DIR` | the `app` folder | Folder that holds `data/` and `cache/`. Only needed to put them on a persistent disk |
+| `KEEPALIVE_URL` | Render's public address | Address the app pings every 5 minutes (`/health` is added). Only set on a host that sleeps when idle |
 | `STOCKPICKS_SECURE_COOKIES` | unset | `1` sends cookies over HTTPS only |
 
 ## Deploy on Render
@@ -80,7 +81,7 @@ All settings are environment variables. None is required to run locally.
 
 What is stored in PostgreSQL: accounts and portfolios, every symbol's price history (`price_cache`), the finished scan and the imported ETF/BSE lists (`blobs`). Only throwaway files (exchange list downloads, news and fundamentals caches) stay on the instance's disk and are fetched again after a restart.
 
-Free-tier limits: the service sleeps after about 15 minutes without a visit and takes a while to wake; it has a fraction of a CPU, so a full scan is slow (minutes locally, longer there); and Render's free PostgreSQL expires after 30 days, so use a database that does not. The scan keeps one price history in memory at a time and peaks around 260 MB. Run a single instance, because scan state and the sign-in rate limiter live in memory. Behind Render's proxy every visitor shares one address for rate limiting.
+Free-tier limits: a free service sleeps after about 15 minutes without a visit, so the app calls its own public `/health` every 5 minutes to stay awake (it reads the address from `RENDER_EXTERNAL_URL`, which Render sets; override it with `KEEPALIVE_URL`, and a local run does not ping). A free service has 750 instance-hours a month, which one always-on service just fits. Pings only help while the service is up: if Render restarts it, the first visit wakes it. The service has a fraction of a CPU, so a full scan is slow (minutes locally, longer there); and Render's free PostgreSQL expires after 30 days, so use a database that does not. The scan keeps one price history in memory at a time and peaks around 260 MB. Run a single instance, because scan state and the sign-in rate limiter live in memory. Behind Render's proxy every visitor shares one address for rate limiting.
 
 ## Accounts and sign-in
 

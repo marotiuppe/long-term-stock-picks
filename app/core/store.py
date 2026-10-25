@@ -515,12 +515,25 @@ class Store:
             "SELECT symbol, verdict FROM last_calls WHERE user_id=?", (str(uid),))}
 
     def set_last_calls(self, uid, calls):
+        """Make the stored calls equal `calls`, writing only what differs. Called on every page load, so an unchanged set writes nothing."""
+        uid = str(uid)
+        new = {_symbol(k): v for k, v in dict(calls).items()}
+        old = self.get_last_calls(uid)
+        gone, changed = [s for s in old if s not in new], [(uid, s, v) for s, v in new.items() if old.get(s) != v]
+        if not gone and not changed:
+            return
         self.ensure_user(uid)
-        rows = [(str(uid), _symbol(k), v) for k, v in dict(calls).items()]
         with self._lock:
-            self.db.execute("DELETE FROM last_calls WHERE user_id=?", (str(uid),))
-            self.db.executemany("INSERT INTO last_calls(user_id, symbol, verdict) VALUES(?,?,?)", rows)
-            self.db.commit()
+            try:
+                if gone:
+                    self.db.executemany("DELETE FROM last_calls WHERE user_id=? AND symbol=?", [(uid, s) for s in gone])
+                if changed:
+                    self.db.executemany("INSERT INTO last_calls(user_id, symbol, verdict) VALUES(?,?,?) "
+                                        "ON CONFLICT(user_id, symbol) DO UPDATE SET verdict=excluded.verdict", changed)
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
 
     # notes: one plain-text note per stock
     def get_note(self, uid, symbol):
@@ -689,6 +702,19 @@ class Store:
         r = self._all("SELECT value FROM blobs WHERE name=?", (name,))
         try:
             return json.loads(zlib.decompress(bytes(r[0]["value"]))) if r else None
+        except Exception:
+            return None
+
+    # named binary files (downloaded lists and company facts), zlib-compressed, under a "file:" prefix in the same table
+    def raw_put(self, name, data, now=None):
+        self._run("INSERT INTO blobs(name, saved, value) VALUES(?,?,?) "
+                  "ON CONFLICT(name) DO UPDATE SET saved=excluded.saved, value=excluded.value", ("file:" + name, now or time.time(), zlib.compress(bytes(data))))
+
+    def raw_get(self, name):
+        """(bytes, saved-at epoch seconds) or None when absent or unreadable."""
+        r = self._all("SELECT saved, value FROM blobs WHERE name=?", ("file:" + name,))
+        try:
+            return (zlib.decompress(bytes(r[0]["value"])), r[0]["saved"]) if r else None
         except Exception:
             return None
 

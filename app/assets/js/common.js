@@ -161,7 +161,7 @@ async function load(force){
  if(d.status==='error')return loadFailed('Server error: '+d.error);
  D=d;$('rf').classList.toggle('spin',!!d.refreshing);
  const pr=d.progress&&d.progress.total>1?` ${d.progress.phase}: ${f(d.progress.done,0)} of ${f(d.progress.total,0)}.`:'';
- $('meta').className=d.refreshing?'load':'';$('meta').textContent=`Prices as of ${dt(D.stocks[0].asof)}. Plan dates start ${dt(D.buyDate)}. Scanned ${D.generated}, refreshed daily at 4 pm.${d.refreshing?' Refreshing in the background…'+pr:''}`;
+ $('meta').className=d.refreshing?'load':'';$('meta').textContent=`Prices as of ${dt(D.stocks[0].asof)}. Plan dates start ${dt(D.buyDate)}. Scanned ${D.generated}, refreshed daily at 11 pm IST.${d.refreshing?' Refreshing in the background…'+pr:''}`;
  if(d.upToDate){const u=document.createElement('span');u.textContent=' Already up to date: these are the prices from the last market close, and nothing newer exists yet. ';
   const b=document.createElement('button');b.type='button';b.className='chip';b.textContent='Re-download anyway';
   b.onclick=()=>{$('rf').classList.add('spin');$('meta').className='load';$('meta').innerHTML='<i></i>Re-downloading…';load('full')};u.appendChild(b);$('meta').appendChild(u)}

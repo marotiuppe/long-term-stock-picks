@@ -3,6 +3,7 @@ Both exchanges publish the same UDiFF CSV layout; the newest file is found by wa
 import csv, datetime, io, json, os, time, urllib.request, zipfile
 
 from core.paths import APP_DIR as HERE   # the app folder, not this module's folder
+from core import cachefs
 from core.paths import CACHE_DIR
 NSE_URL = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{d}_F_0000.csv.zip"
 BSE_URL = "https://www.bseindia.com/download/BhavCopy/Equity/BhavCopy_BSE_CM_0_0_0_{d}_F_0000.CSV"
@@ -63,18 +64,17 @@ MISS_SECONDS = 600  # NSE posts bhavcopy well after the close: do not ask again 
 def latest(exchange, today=None, cache_dir=None):
     """Newest available bhavcopy for 'NSE' or 'BSE' as {symbol: row}; cached on disk per trading date.
     Returns {} when nothing could be fetched or read."""
-    cache_dir = cache_dir or CACHE_DIR
-    os.makedirs(cache_dir, exist_ok=True)
     today = today or datetime.date.today()
     for back in range(LOOKBACK_DAYS):
         day = today - datetime.timedelta(days=back)
         if day.weekday() >= 5:
             continue
-        path = os.path.join(cache_dir, f"bhav-{exchange}-{day.isoformat()}.json")
-        if os.path.exists(path):
+        name = f"bhav-{exchange}-{day.isoformat()}.json"
+        saved = cachefs.read(name, cache_dir, CACHE_DIR)
+        if saved:
             try:
-                return json.load(open(path, encoding="utf-8"))
-            except (OSError, ValueError):
+                return json.loads(saved[0].decode("utf-8"))
+            except ValueError:
                 pass
         if time.time() - _miss.get((exchange, day, cache_dir), 0) < MISS_SECONDS:
             continue
@@ -84,7 +84,7 @@ def latest(exchange, today=None, cache_dir=None):
             _miss[(exchange, day, cache_dir)] = time.time()
             continue
         if rows:
-            json.dump(rows, open(path, "w", encoding="utf-8"))
+            cachefs.write(name, json.dumps(rows).encode("utf-8"), cache_dir, CACHE_DIR)
             return rows
     return {}
 
@@ -95,18 +95,17 @@ BSE_EQUITY_GROUPS = {"A", "B", "T", "X", "XT"}   # shares only: bonds, debenture
 
 def nse_etfs(cache_dir=None):
     """NSE's official ETF list as rows for lists.merge ('etf' kind), cached for a day. [] when unavailable."""
-    cache_dir = cache_dir or CACHE_DIR
-    os.makedirs(cache_dir, exist_ok=True)
-    path = os.path.join(cache_dir, "eq_etfseclist.csv")
-    if not os.path.exists(path) or time.time() - os.path.getmtime(path) > 86400:
+    saved = cachefs.read("eq_etfseclist.csv", cache_dir, CACHE_DIR)
+    if not saved or time.time() - saved[1] > 86400:
         try:
-            open(path, "wb").write(_get(ETF_LIST_URL))
+            data = _get(ETF_LIST_URL)
+            cachefs.write("eq_etfseclist.csv", data, cache_dir, CACHE_DIR)
+            saved = (data, time.time())
         except Exception:
-            pass
-    try:
-        text = open(path, encoding="utf-8-sig", errors="replace").read()
-    except OSError:
+            pass   # keep the older copy if there is one
+    if not saved:
         return []
+    text = saved[0].decode("utf-8-sig", errors="replace")
     return [{"symbol": r["Symbol"].strip(), "name": (r.get("SecurityName") or "").strip(),
              "underlying": (r.get("Underlying Asset") or "").strip()}
             for r in csv.DictReader(io.StringIO(text)) if (r.get("Symbol") or "").strip()]

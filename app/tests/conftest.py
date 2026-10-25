@@ -12,3 +12,5 @@ def isolated_lists(tmp_path, monkeypatch):
     monkeypatch.setattr(lists, "PATH", str(tmp_path / "lists.json"))
     import server
     monkeypatch.setattr(server, "scan_file", lambda: str(tmp_path / "scan-latest.pkl"))
+    server._seen_scan[0] = server._scan_checked[0] = 0.0      # per-process memory of the saved scan and of the serialized /api/scan
+    server._scan_body[:] = [None, b""]

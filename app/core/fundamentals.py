@@ -18,6 +18,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 from core.paths import APP_DIR as HERE   # the app folder, not this module's folder
+from core import cachefs
 from core.paths import CACHE_DIR
 TTL_SECONDS = 20 * 3600
 UA = "Mozilla/5.0 (compatible; stock-picks-local/1.0)"
@@ -118,14 +119,14 @@ def get_facts(symbol, exchange="NSE", is_etf=False, cache_dir=None, now=None, ge
     if not SAFE.match(symbol):
         return {"symbol": symbol, "status": "error", "fetched": today, "quarters": [], "annual": [], "debt": [], "dividends": [],
                 "splits": [], "closes": {"d": [], "c": []}, "reason": "Unusual symbol, not looked up."}
-    cache_dir = cache_dir or CACHE_DIR
-    path = _cache_path(symbol, cache_dir)
+    name = "fund-%s.json" % symbol
     old = None
-    try:
-        with open(path, encoding="utf-8") as fh:
-            old = json.load(fh)
-    except (OSError, ValueError):
-        pass
+    saved = cachefs.read(name, cache_dir, CACHE_DIR)
+    if saved:
+        try:
+            old = json.loads(saved[0].decode("utf-8"))
+        except ValueError:
+            pass
     t = time.time() if now is None else now.timestamp()
     if old and t - old.get("t", 0) < ttl:
         return old["facts"]
@@ -149,13 +150,10 @@ def get_facts(symbol, exchange="NSE", is_etf=False, cache_dir=None, now=None, ge
         return {"symbol": symbol, "status": "error", "fetched": today, "quarters": [], "annual": [], "debt": [], "dividends": [],
                 "splits": [], "closes": {"d": [], "c": []}, "reason": "Could not reach Yahoo Finance (%s)." % type(e).__name__}
     try:
-        os.makedirs(cache_dir, exist_ok=True)
         with _lock:
-            with open(path + ".tmp", "w", encoding="utf-8") as fh:
-                json.dump({"t": t, "facts": facts}, fh, separators=(",", ":"))
-            os.replace(path + ".tmp", path)
-    except OSError:
-        pass
+            cachefs.write(name, json.dumps({"t": t, "facts": facts}, separators=(",", ":")).encode("utf-8"), cache_dir, CACHE_DIR)
+    except Exception:
+        pass   # a cache that cannot be written (read-only disk, database down) must not fail the lookup
     return facts
 
 

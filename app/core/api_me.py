@@ -94,7 +94,9 @@ def me_payload(store, uid, scan, today=None, hz="1m", ctx=None):
     if stocks:
         for a in alerts.generate_alerts(holdings, watch, stocks, store.get_last_calls(uid), today, review_date):
             store.add_alert(uid, a["key"], a["kind"], a["symbol"], a["message"], a["date"])
-        store.set_last_calls(uid, alerts.next_calls(stocks))
+        # only the stocks this user holds or watches can raise a "call changed" alert, so only those are remembered (not the whole market)
+        mine = {h.get("symbol") for h in holdings} | set(watch)
+        store.set_last_calls(uid, {s: v for s, v in alerts.next_calls(stocks).items() if s in mine})
         # price alerts the user set, any symbol; end-of-day scan data only
         for aid, a in alerts.evaluate_price_alerts(store.list_price_alerts(uid), stocks, today):
             store.add_alert(uid, a["key"], a["kind"], a["symbol"], a["message"], a["date"])

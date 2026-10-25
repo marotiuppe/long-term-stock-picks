@@ -5,14 +5,14 @@ Method: 5 years of daily adjusted prices (Yahoo, free, delayed). Each stock gets
 The forecast for a score comes from what stocks with a similar score actually did over the next
 10/20/60/126 trading days across the whole universe (volatility-scaled to the stock), so every number on
 the page is an empirical odds figure, not a promise. The page also shows that method's own track record."""
-import bisect, csv, datetime, glob, html, io, json, math, os, pickle, re, statistics, threading, time, webbrowser
+import bisect, csv, datetime, glob, gzip, html, io, json, zlib, math, os, pickle, re, statistics, threading, time, webbrowser
 import urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from core import api_me, fundamentals, update_holidays
+from core import api_me, cachefs, fundamentals, update_holidays
 from modules.stocks import bhavcopy, lists
 from modules.about import backtest
 from modules.stock import why
@@ -24,7 +24,7 @@ HOST = os.environ.get("HOST", "127.0.0.1")   # 0.0.0.0 on a server
 CACHE_SECONDS = 30 * 60
 HORIZONS = {"1d": 1, "2d": 2, "5d": 5, "10d": 10, "1m": 20, "3m": 60, "6m": 126}   # trading days
 HZ_1M = list(HORIZONS).index("1m")   # the Buy call and the all-stock base rate are judged on the 1-month horizon
-SCAN_HOUR = 16   # IST: the daily refresh runs at 4 pm, after the 3:30 pm close, and data scanned earlier counts as stale
+SCAN_HOUR = 23   # IST: the daily refresh runs at 11 pm, long after the 3:30 pm close, and data scanned earlier counts as stale
 BUY_SCORE, WATCH_SCORE = 40, 20
 
 FALLBACK = """RELIANCE TCS HDFCBANK ICICIBANK INFY BHARTIARTL ITC SBIN LT HINDUNILVR KOTAKBANK AXISBANK
@@ -49,18 +49,19 @@ SECURITY_HEADERS = {
 
 def load_universe():
     """All NSE equity-series shares from NSE's own EQUITY_L.csv (cached per day) plus a few ETFs."""
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    path = os.path.join(CACHE_DIR, "EQUITY_L.csv")
-    if not os.path.exists(path) or time.time() - os.path.getmtime(path) > 86400:
+    saved = cachefs.read("EQUITY_L.csv", default_dir=CACHE_DIR)
+    if not saved or time.time() - saved[1] > 86400:
         try:
             req = urllib.request.Request("https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
                                          headers={"User-Agent": "Mozilla/5.0"})
-            open(path, "wb").write(urllib.request.urlopen(req, timeout=30).read())
+            data = urllib.request.urlopen(req, timeout=30).read()
+            cachefs.write("EQUITY_L.csv", data, default_dir=CACHE_DIR)
+            saved = (data, time.time())
         except Exception:
-            pass
+            pass   # keep the older copy if there is one
     names = dict(ETF_LIST)
     try:
-        for r in csv.DictReader(io.StringIO(open(path, encoding="utf-8", errors="replace").read())):
+        for r in csv.DictReader(io.StringIO(saved[0].decode("utf-8", errors="replace") if saved else "")):
             r = {k.strip(): (v or "").strip() for k, v in r.items() if k}
             if r.get("SERIES") == "EQ" and r.get("SYMBOL"):
                 names[r["SYMBOL"]] = r.get("NAME OF COMPANY", r["SYMBOL"])
@@ -119,6 +120,23 @@ def keepalive(stop, url, every=KEEPALIVE_EVERY, opener=None):
             opener(url)
         except Exception as e:
             print("keep-alive failed:", type(e).__name__, e)
+
+
+SCAN_WATCH_EVERY = 300
+
+
+def scan_watch(stop, every=SCAN_WATCH_EVERY):
+    """Starts the daily refresh by itself once the latest cutoff (SCAN_HOUR, IST) has passed, so it happens at night even when nobody is on the
+    site. Without it a host that has no scheduler would refresh only when the first visitor arrives, who would then wait on stale data. It shares
+    the retry pause with page loads (AUTO_RETRY_SECONDS) so a failing scan is not hammered. Never raises."""
+    while not stop.wait(every):
+        try:
+            load_scan()   # another process (refresh_job.py) may have saved a newer one
+            if not STATE["running"] and not scan_up_to_date() and time.time() - _last_auto[0] > AUTO_RETRY_SECONDS:
+                _last_auto[0] = time.time()
+                start_scan()
+        except Exception as e:
+            print("scheduled refresh check failed:", type(e).__name__, e)
 
 
 def holiday_watch(stop, every=HOLIDAY_CHECK_EVERY):
@@ -581,6 +599,7 @@ def price_db():
 
 
 lists.db = price_db   # imported ETF and BSE lists live in the database too when there is one
+cachefs.backend = price_db   # and so do the downloaded NSE/BSE files and company facts, which a restart would otherwise fetch again
 
 
 def backfill_quotes(data):
@@ -616,42 +635,59 @@ def scan_file():
     return os.path.join(CACHE_DIR, "scan-latest.pkl")
 
 
+_seen_scan = [0.0]    # stamp (database save time, or file mtime) of the newest saved scan this process has already looked at
+_scan_checked = [0.0]
+SCAN_CHECK_SECONDS = 10   # with a database: look for a newer saved scan at most this often (each look is a round trip)
+
+
 def save_scan():
     """Keep the finished scan on disk (or in the database) so a restart (or the page) never has to wait for a recompute."""
     pdb = price_db()
     if pdb:
         pdb.blob_put("scan-latest", {"t": STATE["t"], "data": STATE["data"], "detail": dict(DETAIL)})
+        _seen_scan[0] = pdb.blob_saved("scan-latest") or 0.0   # this process just wrote it: no need to read it back
         return
     os.makedirs(CACHE_DIR, exist_ok=True)
     tmp = scan_file() + ".tmp"
     with open(tmp, "wb") as f:
         pickle.dump({"t": STATE["t"], "data": STATE["data"], "detail": dict(DETAIL)}, f)
     os.replace(tmp, scan_file())
+    _seen_scan[0] = os.path.getmtime(scan_file())
+
+
+_scan_lock = threading.Lock()
 
 
 def load_scan():
-    """Adopt the saved scan when it is newer than what is in memory (server start, or the 4 pm job finished
-    while the server was running). True if it was loaded."""
-    try:
-        pdb = price_db()
-        if pdb:
-            when = pdb.blob_saved("scan-latest")
-            if when is None or when <= STATE["t"]:
+    """Adopt the saved scan when it is newer than what is in memory (server start, or the daily job finished
+    while the server was running). True if it was loaded. One caller at a time: at start-up the start-up thread and the first page load both
+    come here, and the second must wait for the first to finish, not give up and see "no data" (that started a needless full scan)."""
+    with _scan_lock:
+        try:
+            pdb = price_db()
+            if pdb:
+                if STATE["data"] is not None and time.time() - _scan_checked[0] < SCAN_CHECK_SECONDS:
+                    return False   # already have a scan: look for a newer one only every few seconds, each look is a database round trip
+                _scan_checked[0] = time.time()
+                stamp = pdb.blob_saved("scan-latest")
+            else:
+                stamp = os.path.getmtime(scan_file()) if os.path.exists(scan_file()) else None
+            # a saved scan is always stamped a moment after the time inside it, so comparing the stamp with STATE["t"] never settles:
+            # remember the stamp of the version already looked at instead, and read a saved scan only when a newer one appears
+            if stamp is None or stamp <= STATE["t"] or (STATE["data"] is not None and stamp <= _seen_scan[0]):   # with nothing in memory, always read
                 return False
-            saved = pdb.blob_get("scan-latest")
-        else:
-            if not os.path.exists(scan_file()) or os.path.getmtime(scan_file()) <= STATE["t"]:
+            saved = pdb.blob_get("scan-latest") if pdb else pickle.load(open(scan_file(), "rb"))
+            _seen_scan[0] = stamp
+            if not saved or not saved.get("data") or saved["t"] <= STATE["t"]:
                 return False
-            saved = pickle.load(open(scan_file(), "rb"))
-        if not saved or not saved.get("data") or saved["t"] <= STATE["t"]:
+        except Exception:
+            _scan_checked[0] = 0.0   # the look failed: try again on the next call, not after the pause
             return False
-    except Exception:
-        return False
-    DETAIL.clear()
-    DETAIL.update(saved["detail"])
-    backfill_quotes(saved["data"])
-    STATE.update(t=saved["t"], data=saved["data"], error=None)
-    return True
+        DETAIL.clear()
+        DETAIL.update(saved["detail"])
+        backfill_quotes(saved["data"])
+        STATE.update(t=saved["t"], data=saved["data"], error=None)
+        return True
 
 
 def older_cache(current):
@@ -869,15 +905,20 @@ def asset_bytes(path):
     return open(full, "rb").read(), ASSET_TYPES[ext]
 
 
+_store_lock = threading.Lock()
+
+
 def get_store():
     global _store
     if _store is None:
-        url = os.environ.get("DATABASE_URL", "").strip()   # PostgreSQL when set, otherwise SQLite under DATA_DIR
-        if url:
-            _store = Store(url)
-        else:
-            os.makedirs(DATA_DIR, exist_ok=True)
-            _store = Store(os.path.join(DATA_DIR, "users.db"))
+        with _store_lock:   # the start-up thread and the first page load both ask: build it once (two CREATE TABLEs at once collide in PostgreSQL)
+            if _store is None:
+                url = os.environ.get("DATABASE_URL", "").strip()   # PostgreSQL when set, otherwise SQLite under DATA_DIR
+                if url:
+                    _store = Store(url)
+                else:
+                    os.makedirs(DATA_DIR, exist_ok=True)
+                    _store = Store(os.path.join(DATA_DIR, "users.db"))
     return _store
 
 
@@ -945,7 +986,7 @@ AUTO_RETRY_SECONDS = 600   # a failed background refresh is retried at most this
 def api_scan(force):
     """force: False, True (Refresh data) or "full" (re-download everything). A plain refresh of data that is already from the latest close
     answers at once with upToDate instead of starting a scan that could only reproduce it."""
-    load_scan()   # the 4 pm job may have saved a newer scan than the one in memory
+    load_scan()   # the daily job may have saved a newer scan than the one in memory
     stale = bool(STATE["data"]) and not scan_up_to_date()
     up_to_date = False
     if force is True and not STATE["running"] and scan_up_to_date():
@@ -967,6 +1008,39 @@ def api_scan(force):
                     staleSince=stale_since(datetime.date.fromisoformat(asof), datetime.date.today()) if asof else None)
     return {"status": "error" if STATE["error"] else "loading", "error": STATE["error"], "phase": STATE["phase"],
             "done": STATE["done"], "total": STATE["total"]}
+
+
+_gz_cache, _gz_lock = {}, threading.Lock()
+GZIP_TYPES = ("text/", "application/json", "application/javascript", "application/manifest+json", "image/svg+xml")
+GZIP_MIN = 1400
+
+
+def gzipped(body):
+    """gzip of body, kept for next time (the same page, script or scan is sent to every visitor); at most 48 entries."""
+    key = (len(body), hash(body))
+    with _gz_lock:
+        if key in _gz_cache:
+            return _gz_cache[key]
+    out = gzip.compress(body, 6, mtime=0)
+    with _gz_lock:
+        if len(_gz_cache) >= 48:
+            _gz_cache.pop(next(iter(_gz_cache)))
+        _gz_cache[key] = out
+    return out
+
+
+_scan_body = [None, b""]   # [key, serialized /api/scan]
+
+
+def scan_json(qs):
+    """The /api/scan answer as JSON bytes. The scan is 2 to 3 MB of JSON, so it is serialized once and reused until something in the answer changes."""
+    res = api_scan("full" if qs.get("force") == ["full"] else "force" in qs)
+    if res.get("status") != "ready":
+        return json.dumps(res).encode()
+    key = (id(STATE["data"]), res["refreshing"], res["upToDate"], res["refreshError"], res["staleSince"], json.dumps(res["progress"]))
+    if _scan_body[0] != key:
+        _scan_body[1], _scan_body[0] = json.dumps(res).encode(), key
+    return _scan_body[1]
 
 
 class H(BaseHTTPRequestHandler):
@@ -999,7 +1073,7 @@ class H(BaseHTTPRequestHandler):
             body, ctype = json.dumps(health()).encode(), "application/json"
         elif u.path == "/api/scan":
             qs = urllib.parse.parse_qs(u.query, keep_blank_values=True)
-            body, ctype = json.dumps(api_scan("full" if qs.get("force") == ["full"] else "force" in qs)).encode(), "application/json"
+            body, ctype = scan_json(qs), "application/json"
         elif u.path == "/api/stock":
             sym = urllib.parse.parse_qs(u.query).get("sym", [""])[0]
             if not SYM_RE.fullmatch(sym):
@@ -1121,6 +1195,12 @@ class H(BaseHTTPRequestHandler):
         self.reply(code, json.dumps(obj).encode(), "application/json", headers)
 
     def reply(self, code, body, ctype, extra=None):
+        etag = None
+        if code == 200 and ctype != "application/json" and body and not extra:
+            # pages, scripts and styles: a visitor whose copy is unchanged gets a tiny 304 instead of the whole file again
+            etag = 'W/"%x-%x"' % (len(body), zlib.crc32(body))
+            if etag in (self.headers.get("If-None-Match") or ""):
+                code, body = 304, b""
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         for k, v in (extra or {}).items():
@@ -1128,6 +1208,13 @@ class H(BaseHTTPRequestHandler):
         for c in self.new_cookies:
             self.send_header("Set-Cookie", c)
         self.send_header("Cache-Control", "no-store" if ctype == "application/json" else "no-cache")
+        if etag:
+            self.send_header("ETag", etag)
+        if ctype.startswith(GZIP_TYPES) and len(body) >= GZIP_MIN and code == 200:
+            self.send_header("Vary", "Accept-Encoding")
+            if "gzip" in (self.headers.get("Accept-Encoding") or ""):
+                body = gzipped(body)
+                self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(body)))
         for k, v in SECURITY_HEADERS.items():
             self.send_header(k, v)
@@ -1149,6 +1236,7 @@ if __name__ == "__main__":
             start_scan()
         holiday_watch(threading.Event())
     threading.Thread(target=startup, daemon=True, name="startup").start()
+    threading.Thread(target=scan_watch, args=(threading.Event(),), daemon=True, name="scan-watch").start()
     if keepalive_url():
         threading.Thread(target=keepalive, args=(threading.Event(), keepalive_url()), daemon=True, name="keepalive").start()
     if HOST == "127.0.0.1":   # local run: open the browser; a server has none

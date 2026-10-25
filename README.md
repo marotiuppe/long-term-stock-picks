@@ -2,6 +2,22 @@
 
 A buy-and-hold stock and ETF picker for the Indian market (NSE), with a portfolio tracker, alerts and a plain-language "why" for every pick. Python standard-library server, no framework, no day trading.
 
+<p align="center"><a href="https://long-term-stock-picks.onrender.com"><img src="app/assets/icons/og-image.png" alt="Long-term stock picks, with the reasons shown" width="720"></a></p>
+
+**Live demo: <https://long-term-stock-picks.onrender.com>**
+
+It runs on Render's free plan, so after a quiet spell the first visit can take a moment to wake it. Educational only: not investment advice and not a recommendation to buy or sell any stock or ETF.
+
+## Screenshots
+
+| Landing page | App home |
+|---|---|
+| <img src="docs/images/landing.png" alt="The landing page" width="420"> | <img src="docs/images/app-home.png" alt="The app home with top picks" width="420"> |
+
+<p align="center"><img src="docs/images/app-phone.png" alt="The app on a phone" width="260"></p>
+
+(Screenshots from a local run on the 23 October 2026 close. Numbers change every day.)
+
 A local page that lists liquid NSE shares and ETFs to buy and hold for 10 days, 1 month, 3 months or 6 months. It shows a buy date, a sell or review date, a stop-loss, a forecast range and recent news. Daily prices only. No intraday signals and no order placement.
 
 **It has no proven edge.** In our own back-test the buy-grade picks rose about 57% of the time at 1 month, against about 56% for any stock. Treat every number as a historical base rate, never as a promise of profit. This is an educational tool, not investment advice. Planned work is in [ROADMAP.md](ROADMAP.md).
@@ -70,6 +86,7 @@ All settings are environment variables. None is required to run locally.
 | `STOCKPICKS_DATA_DIR` | the `app` folder | Folder that holds `data/` and `cache/`. Only needed to put them on a persistent disk |
 | `KEEPALIVE_URL` | Render's public address | Address the app pings every 5 minutes (`/health` is added). Only set on a host that sleeps when idle |
 | `LEGAL_OPERATOR`, `LEGAL_EMAIL`, `LEGAL_JURISDICTION` | placeholders | Filled into the legal pages (`/privacy.html`, `/cookies.html`, `/terms.html`, `/disclaimer.html`). Unset shows a visible placeholder. Optional: `LEGAL_ADDRESS`, `LEGAL_GRIEVANCE` (defaults to the operator), `LEGAL_SEBI_STATUS` (replaces the default "not registered with SEBI" sentence) |
+| `SITE_URL` | Render's public address | The site's public address (for example `https://stocks.example.com`), used to build the absolute image and page URLs in link previews. Set it if you add your own domain |
 | `STATS_TOKEN` | unset | Secret that unlocks `/stats.html` and `/api/stats` (page views per page and day). Unset: both answer 404. Make one with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `STOCKPICKS_SECURE_COOKIES` | unset | `1` sends cookies over HTTPS only |
 
@@ -90,6 +107,10 @@ Free-tier limits: a free service sleeps after about 15 minutes without a visit, 
 ## Legal pages
 
 `/privacy.html`, `/cookies.html`, `/terms.html` and `/disclaimer.html` are served from `app/modules/legal/` (one layout, one body file per page) and say, in plain words, that the site is for education only, is not a recommendation to buy or sell any stock or ETF, and that we are not responsible for decisions or losses. They describe what the app actually does: the cookies it sets (`uid`, `sid`), the browser settings it saves, what is stored on the server, and which outside services it calls. **If you change any of that, update the pages**; a test fails if a cookie or saved setting is missing from the Cookie Policy. They are plain-language templates, not legal advice: have a lawyer review them before you launch publicly.
+
+## Link previews
+
+Every page carries Open Graph and Twitter card tags (title, description and a 1200 x 630 logo card at `app/assets/icons/og-image.png`), added when the page is served, so a shared link shows the logo instead of a grey placeholder. The URLs in the tags are absolute and come from `SITE_URL`, else `RENDER_EXTERNAL_URL`. Chat apps and social sites cache previews: after a deploy, share the link with `?v=2` added (or use Facebook's Sharing Debugger) to see the new card.
 
 ## Visit counts
 

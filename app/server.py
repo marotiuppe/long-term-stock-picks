@@ -987,6 +987,44 @@ _page = {}
 _page_lock = threading.Lock()
 
 
+SOCIAL_IMAGE = "/assets/icons/og-image.png"   # 1200 x 630
+SOCIAL_DESCRIPTION = ("Buy-and-hold picks for NSE shares and ETFs: a buy date, a review date, a stop-loss, a forecast range and the reasons "
+                      "behind every pick. Free, no sign-up. Educational, not investment advice.")
+
+
+def site_base(headers):
+    """The public address of this site, for the absolute URLs link previews need: SITE_URL, else the address Render gives the service, else
+    the Host header of the request (a local run)."""
+    base = (os.environ.get("SITE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+    if base.startswith(("http://", "https://")):
+        return base
+    host = re.sub(r"[^A-Za-z0-9.:-]", "", headers.get("Host") or "")[:100] or "localhost"
+    return "http://" + host
+
+
+def add_social_tags(page, path, base):
+    """Open Graph and Twitter card tags in the page's head, so a shared link shows the title, a description and the logo card instead of a
+    grey placeholder. Built from the page's own <title> and description; a page that already has them is left alone."""
+    text = page.decode("utf-8")
+    if 'property="og:title"' in text or "</head>" not in text:
+        return page
+    m = re.search(r"<title>(.*?)</title>", text, re.S)
+    title = html.unescape(m.group(1).strip()) if m else "Long-Term Stock Picks"
+    d = re.search(r'<meta name="description" content="([^"]*)"', text)
+    desc = html.unescape(d.group(1)) if d else SOCIAL_DESCRIPTION
+    q = lambda v: html.escape(v, quote=True)
+    tags = "".join('<meta %s="%s" content="%s">' % (k, n, q(v)) for k, n, v in (
+        ("property", "og:type", "website"), ("property", "og:site_name", "Long-Term Stock Picks"), ("property", "og:title", title),
+        ("property", "og:description", desc), ("property", "og:url", base + ("" if path == "/" else path)),
+        ("property", "og:image", base + SOCIAL_IMAGE), ("property", "og:image:type", "image/png"), ("property", "og:image:width", "1200"),
+        ("property", "og:image:height", "630"), ("property", "og:image:alt", "Long-Term Stock Picks: long-term NSE stock picks, with the reasons shown"),
+        ("name", "twitter:card", "summary_large_image"), ("name", "twitter:title", title), ("name", "twitter:description", desc),
+        ("name", "twitter:image", base + SOCIAL_IMAGE)))
+    if not d:
+        tags = '<meta name="description" content="%s">' % q(desc) + tags
+    return text.replace("</head>", tags + "</head>", 1).encode("utf-8")
+
+
 LEGAL_UPDATED = "25 October 2026"
 LEGAL_PAGES = {"/privacy.html": ("Privacy Policy", "privacy"), "/cookies.html": ("Cookie Policy", "cookies"),
                "/terms.html": ("Terms of Use", "terms"), "/disclaimer.html": ("Disclaimer", "disclaimer")}
@@ -1160,11 +1198,11 @@ class H(BaseHTTPRequestHandler):
                 return self.reply(404, json.dumps({"error": f"not in latest bhavcopy: {sym[:30]}"}).encode(), "application/json")
             body, ctype = json.dumps(rows).encode(), "application/json"
         elif u.path in PAGES:
-            body, ctype = page_bytes(PAGES[u.path]), "text/html; charset=utf-8"
+            body, ctype = add_social_tags(page_bytes(PAGES[u.path]), u.path, site_base(self.headers)), "text/html; charset=utf-8"
             if not self.head_only:
                 count_view(u.path, self.headers.get("User-Agent"))
         elif u.path in LEGAL_PAGES:
-            body, ctype = legal_bytes(u.path), "text/html; charset=utf-8"
+            body, ctype = add_social_tags(legal_bytes(u.path), u.path, site_base(self.headers)), "text/html; charset=utf-8"
             if not self.head_only:
                 count_view(u.path, self.headers.get("User-Agent"))
         elif u.path == "/stats.html" and os.environ.get("STATS_TOKEN", "").strip():

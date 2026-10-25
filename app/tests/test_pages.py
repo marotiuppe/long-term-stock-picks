@@ -52,7 +52,11 @@ def page(name):
 @pytest.mark.parametrize("path,file", sorted(PAGES.items()))
 def test_each_page_serves_its_own_file(base, path, file):
     st, h, body = get(base + path)
-    assert st == 200 and body == page(file)
+    # the file as written, plus the link-preview tags added when it is served (see test_social.py); nothing else changes
+    expected = server.add_social_tags(page(file), path, server.site_base({"Host": base.split("//")[1]}))
+    assert st == 200 and body == expected
+    strip = lambda b: re.sub(rb'<meta (?:property|name)="(?:og|twitter):[^>]*>|<meta name="description"[^>]*>', b"", b)
+    assert strip(body) == strip(page(file))
     assert h["Content-Type"].startswith("text/html")
     assert "frame-ancestors 'none'" in h["Content-Security-Policy"]
 

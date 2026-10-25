@@ -118,6 +118,7 @@ app/
   core/                  shared Python: store.py (SQLite, or PostgreSQL through pgdb.py), api_me.py (the per-user API router), fundamentals.py,
                          update_holidays.py, plans.py, paths.py
   modules/
+    landing/             landing.html (served at /), landing.css, landing.js
     home/                index.html, index.js
     stocks/              stocks.html, etfs.html, bse.html, lists.py (NSE/BSE/ETF lists), bhavcopy.py (official exchange close)
     stock/               stock.html (?symbol=TCS), why.py (the Why panel), notes, price alerts, what-if calculator, share and print
@@ -132,7 +133,7 @@ app/
 
 Nothing here has to be run by hand. The daily scan rebuilds the held-out test report (read it at `/api/track-record`, linked from "How this was tested" on Home), and the app keeps the NSE holiday list current. `python -m modules.about.backtest` (from the `app` folder) is optional: it only reprints the same report from the saved price cache.
 
-A page is served at its usual address (`/portfolio.html`, `/stock.html?symbol=TCS`, ...). A screen's own `.js` and `.css` are served from `/modules/<screen>/`; Python files and page sources in those folders are never served. Run the Python tools from the `app` folder, for example `python -m core.update_holidays`.
+The landing page (`modules/landing/`) is served at `/`; the app itself starts at `/index.html`. The app is dark by default and switches to light only when the user picks it (the choice is saved in the browser; the system setting is not followed). A page is served at its usual address (`/portfolio.html`, `/stock.html?symbol=TCS`, ...). A screen's own `.js` and `.css` are served from `/modules/<screen>/`; Python files and page sources in those folders are never served. Run the Python tools from the `app` folder, for example `python -m core.update_holidays`.
 
 ## Files
 

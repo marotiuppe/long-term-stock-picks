@@ -95,11 +95,11 @@
   // ---------- theme ----------
   function effective() {
     var t = root.getAttribute('data-theme');
-    return t === 'dark' || t === 'light' ? t : (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+    return t === 'light' ? 'light' : 'dark';   // dark is the default; the system setting is not followed
   }
   function applySaved() {
     var t = store.get(THEME);
-    if (t === 'light' || t === 'dark') root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+    root.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
   }
   function themeColor() {
     var dark = effective() === 'dark', phone = matchMedia('(max-width:768px)').matches;
@@ -117,7 +117,6 @@
   }
   applySaved();   // before first paint
   themeColor();
-  try { matchMedia('(prefers-color-scheme:dark)').addEventListener('change', paintToggle); } catch (e) { /* old browser */ }
   addEventListener('storage', function (e) { if (e.key === THEME) { applySaved(); paintToggle(); } });   // another tab changed it
 
   // ---------- shell ----------

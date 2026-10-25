@@ -707,7 +707,7 @@ def run_scan(force):
             def submit(x):
                 i = info.get(x, {})
                 return ex.submit(fetch, x, i["suffix"], i["yahoo"]) if i.get("suffix") else ex.submit(fetch, x)
-            queue, pending = iter(todo), set()
+            queue, pending, unsaved = iter(todo), set(), {}
             while True:
                 while len(pending) < 64:   # a bounded window: finished downloads are handled and freed, not queued up in memory
                     x = next(queue, None)
@@ -721,11 +721,16 @@ def run_scan(force):
                     sym, rows = fut.result()
                     v = rows if sym == "^NSEI" else slim(rows, today)
                     if pdb and v:
-                        pdb.price_save({sym: v})   # saved as it arrives, so a restart (a free host sleeps) resumes where it stopped
+                        unsaved[sym] = v   # saved in small batches (one commit each), so a restart resumes close to where it stopped
+                        if len(unsaved) >= 25:
+                            pdb.price_save(unsaved)
+                            unsaved = {}
                         if isinstance(v, list) and sym != "^NSEI":
                             v = True   # the history stays in the database: scoring reads it back one symbol at a time
                     res[sym] = v
                     STATE["done"] += 1
+            if pdb and unsaved:
+                pdb.price_save(unsaved)
         if sum(1 for x in core if res.get(x)) < len(core) / 2:
             old = None
             if pdb:
@@ -777,6 +782,10 @@ def run_scan(force):
         report = backtest.format_report(track, len(data), len(pool), len(train), len(held), cutoff, PURGE_DAYS, "scan of " + today.isoformat())
         for s in stocks:
             decide(s, today, base_rate(pool, track))
+        if not stocks:
+            raise RuntimeError("the scan found no usable stocks (%d symbols, filtered out: %s, unreadable or empty price rows: %d). "
+                               "Yahoo may be blocking this host or returning partial data; check the logs and try Refresh data again"
+                               % (len(syms) - 1, excl, len(data) - len(stocks)))
         last = max(datetime.date.fromisoformat(s["asof"]) for s in stocks)
         buy = first_td_from(max(today, last + datetime.timedelta(days=1)))
         DETAIL.clear()
@@ -830,7 +839,7 @@ _store = None
 _universe = None
 # every screen lives in its own folder: app/modules/<screen>/<page>.html (see README, "Project layout")
 _HOME, _STOCKS = "modules/home/index.html", "modules/stocks/"
-PAGES = {"/": _HOME, "/index.html": _HOME, "/stocks.html": _STOCKS + "stocks.html", "/etfs.html": _STOCKS + "etfs.html",
+PAGES = {"/": "modules/landing/landing.html", "/index.html": _HOME, "/stocks.html": _STOCKS + "stocks.html", "/etfs.html": _STOCKS + "etfs.html",
          "/bse.html": _STOCKS + "bse.html", "/portfolio.html": "modules/portfolio/portfolio.html", "/about.html": "modules/about/about.html",
          "/stock.html": "modules/stock/stock.html", "/settings.html": "modules/settings/settings.html", "/account.html": "modules/account/account.html"}
 LEGACY_PAGES = {"/stocks": "/stocks.html", "/etfs": "/etfs.html", "/portfolio": "/portfolio.html", "/bse": "/bse.html",

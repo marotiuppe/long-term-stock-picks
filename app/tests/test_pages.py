@@ -10,7 +10,8 @@ import pytest
 import server
 
 APP = os.path.join(os.path.dirname(__file__), "..")
-PAGES = {"/": "modules/home/index.html", "/index.html": "modules/home/index.html", "/stocks.html": "modules/stocks/stocks.html",
+LANDING = "modules/landing/landing.html"   # served at "/"; it is not an app-shell page
+PAGES = {"/index.html": "modules/home/index.html", "/stocks.html": "modules/stocks/stocks.html",
          "/etfs.html": "modules/stocks/etfs.html", "/bse.html": "modules/stocks/bse.html", "/portfolio.html": "modules/portfolio/portfolio.html",
          "/about.html": "modules/about/about.html", "/stock.html": "modules/stock/stock.html", "/settings.html": "modules/settings/settings.html",
          "/account.html": "modules/account/account.html"}
@@ -144,7 +145,7 @@ def test_manifest_makes_the_app_installable(base):
 
 
 def test_every_page_links_the_manifest_and_covers_the_safe_area():
-    for f in sorted(set(PAGES.values())):
+    for f in sorted(set(PAGES.values()) | {LANDING}):
         t = page(f).decode()
         assert 'rel="manifest" href="/manifest.webmanifest"' in t and "viewport-fit=cover" in t, f
 
@@ -152,3 +153,31 @@ def test_every_page_links_the_manifest_and_covers_the_safe_area():
 @pytest.mark.parametrize("path", ["/assets/icons/../../server.py", "/assets/icons/x.js", "/assets/js/icon.png", "/assets/icons/nope.png"])
 def test_icon_folder_serves_only_images(base, path):
     assert get(base + path)[0] == 404
+
+
+def test_landing_page_is_served_at_root_and_the_app_home_at_index(base):
+    st, h, body = get(base + "/")
+    assert st == 200 and "text/html" in h["Content-Type"]
+    assert b"Long-term stock picks" in body and b'href="/index.html"' in body and b'id="main"' in body
+    assert b"No proven edge" in body or b"no proven edge" in body.lower()      # the honest numbers stay on the front page
+    st2, h2, home = get(base + "/index.html")
+    assert st2 == 200 and b'data-page="home"' in home and b"landing.css" not in home
+
+
+def test_landing_page_files_load_and_it_defaults_to_dark(base):
+    t = page(LANDING).decode()
+    assert '<html lang="en" data-theme="dark">' in t
+    for ref in re.findall(r'(?:src|href)="(/(?:assets|modules)/[^"]+)"', t):
+        assert os.path.isfile(os.path.join(APP, ref[1:])), ref
+        assert get(base + ref)[0] == 200, ref
+    css = open(os.path.join(APP, "assets", "css", "tokens.css"), encoding="utf-8").read()
+    assert "@media(prefers-color-scheme:dark)" not in css      # dark is the default; light only when chosen
+    assert ":root:not([data-theme=light]){" in css
+    js = open(os.path.join(APP, "assets", "js", "shell.js"), encoding="utf-8").read()
+    assert "prefers-color-scheme" not in js and "t === 'light' ? 'light' : 'dark'" in js
+
+
+def test_manifest_colors_match_the_dark_default():
+    import json
+    m = json.load(open(os.path.join(APP, "manifest.webmanifest"), encoding="utf-8"))
+    assert m["background_color"] == "#0F1419" and m["theme_color"] == "#0F1419"

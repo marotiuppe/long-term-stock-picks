@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0F1419"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Stock picks"><meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Long-Term Stock Picks | NSE buy-and-hold picks with the reasons shown</title>
+<meta name="description" content="Buy-and-hold picks for NSE shares and ETFs: a buy date, a review date, a stop-loss, a forecast range and the reasons behind every pick. Free, no sign-up, no day trading. Educational, not investment advice.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"><noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+<link rel="stylesheet" href="/assets/css/tokens.css"><link rel="stylesheet" href="/modules/landing/landing.css">
+<script>/* the saved theme before first paint; dark unless light was chosen */
+try { if (localStorage.getItem('theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}
+</script>
+</head><body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top"><div class="wrap bar">
+  <a class="brand" href="/" aria-label="Stock picks, home"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7 13.5 15.5l-5-5L2 17"/><path d="M16 7h6v6"/></svg></span><span>Stock picks</span></a>
+  <nav class="links" aria-label="Page sections"><a href="#how">How it works</a><a href="#features">Features</a><a href="#honest">The honest numbers</a></nav>
+  <div class="bar-end">
+    <button type="button" class="ibtn" id="theme" aria-label="Switch theme"></button>
+    <a class="btn btn-sm" href="/index.html">Open the app</a>
+  </div>
+</div></header>
+
+<main id="main">
+<section class="hero"><div class="wrap hero-grid">
+  <div class="hero-copy">
+    <p class="eyebrow">For long-term investors in India · NSE shares and ETFs</p>
+    <h1>Long-term stock picks, with the <span class="hl">reasons shown</span>.</h1>
+    <p class="lead">Every pick comes with a buy date, a review date, a stop-loss and a forecast range, and a plain-language <em>why</em>. Daily prices only. No day trading, no tips, no orders placed for you.</p>
+    <div class="cta-row">
+      <a class="btn btn-lg" href="/index.html">Open the app</a>
+      <a class="btn btn-ghost btn-lg" href="/about.html">How it was tested</a>
+    </div>
+    <ul class="trust" aria-label="At a glance"><li>Free to use</li><li>No sign-up needed</li><li>10 days to 6 months</li></ul>
+  </div>
+
+  <figure class="mock" aria-label="Illustration of a pick card, not a live pick">
+    <div class="mock-top"><span class="mock-sym">SAMPLE</span><span class="pill">Illustration, not a pick</span></div>
+    <div class="mock-verdict"><span class="badge">Buy-grade</span><span class="muted">1-month view</span></div>
+    <dl class="mock-grid">
+      <div><dt>Buy on</dt><dd>Next trading day</dd></div>
+      <div><dt>Review on</dt><dd>About 20 trading days later</dd></div>
+      <div><dt>Stop-loss</dt><dd>Set from the stock's own swings</dd></div>
+      <div><dt>Forecast range</dt><dd>Low, middle and high case</dd></div>
+    </dl>
+    <svg class="band" viewBox="0 0 320 90" role="img" aria-label="A forecast band widening to the right">
+      <path d="M0 52 L80 48 L160 42 L240 33 L320 22 L320 78 L240 64 L160 54 L80 52 L0 52Z" fill="var(--chart-band-1)"/>
+      <path d="M0 52 L80 49 L160 47 L240 45 L320 42 L320 62 L240 59 L160 54 L80 52 L0 52Z" fill="var(--chart-band-2)"/>
+      <path d="M0 52 L80 50 L160 48 L240 46 L320 44" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <p class="mock-note">Ranges show what similar situations did before. They are not promises.</p>
+  </figure>
+</div></section>
+
+<section id="how" class="sec"><div class="wrap">
+  <h2>How it works</h2>
+  <p class="sec-lead">Three steps, repeated every trading day.</p>
+  <ol class="steps">
+    <li><span class="num">1</span><h3>Scan after the close</h3><p>Once the market has closed, the app downloads five years of daily prices for the liquid NSE shares and ETFs, and drops anything too thin or too jumpy to trust.</p></li>
+    <li><span class="num">2</span><h3>Score and forecast</h3><p>Each stock gets a score. The forecast is what stocks with a similar score did next, scaled to this stock's own ups and downs, and checked on data the scoring never saw.</p></li>
+    <li><span class="num">3</span><h3>You decide</h3><p>You get dates, a stop-loss and the reasons. You place any order yourself, with your own broker. The app never trades for you.</p></li>
+  </ol>
+</div></section>
+
+<section id="features" class="sec alt"><div class="wrap">
+  <h2>What you get</h2>
+  <p class="sec-lead">Built for holding, not for watching the screen all day.</p>
+  <div class="cards">
+    <article class="card"><span class="ico" aria-hidden="true">1</span><h3>Clear dates</h3><p>A buy date and a sell-or-review date for 10 days, 1, 3 or 6 months, counted in NSE trading days with market holidays kept current.</p></article>
+    <article class="card"><span class="ico" aria-hidden="true">2</span><h3>The why, in plain words</h3><p>Open any stock for the reasons behind its score, a price chart, recent news and a what-if calculator.</p></article>
+    <article class="card"><span class="ico" aria-hidden="true">3</span><h3>Your portfolio</h3><p>Enter your holdings or sync them read-only from Groww. See value, gain, allocation and which holdings need attention.</p></article>
+    <article class="card"><span class="ico" aria-hidden="true">4</span><h3>Alerts and notes</h3><p>Price alerts, results alerts and a private note per stock, so the reason you bought is still there when you review.</p></article>
+    <article class="card"><span class="ico" aria-hidden="true">5</span><h3>Shares, ETFs and BSE</h3><p>NSE shares and ETFs out of the box, plus BSE scrips you import yourself from the exchange's own list.</p></article>
+    <article class="card"><span class="ico" aria-hidden="true">6</span><h3>On your phone</h3><p>Dark by default, light if you prefer. Installs to the home screen like an app and works well on a small screen.</p></article>
+  </div>
+</div></section>
+
+<section id="honest" class="sec"><div class="wrap narrow">
+  <div class="honest">
+    <h2>The honest numbers</h2>
+    <p><strong>This has no proven edge.</strong> In our own back-test, buy-grade picks rose about <strong>57%</strong> of the time over one month, against about <strong>56%</strong> for any stock. That gap is too small to count on.</p>
+    <p>So treat every number as a historical base rate, never as a promise of profit. The value here is a calm process: clear dates, a stop-loss decided in advance and reasons you can check. The full method and the test report are public.</p>
+    <a class="btn btn-ghost" href="/about.html">Read the method and the test report</a>
+  </div>
+</div></section>
+
+<section class="sec final"><div class="wrap narrow center">
+  <h2>See today's picks</h2>
+  <p class="sec-lead">No account needed. Your data stays under a cookie in your browser until you choose to create one.</p>
+  <a class="btn btn-lg" href="/index.html">Open the app</a>
+</div></section>
+</main>
+
+<footer class="foot"><div class="wrap foot-in">
+  <p>Educational tool, not investment advice. Past results do not predict future returns.</p>
+  <nav aria-label="Footer"><a href="/index.html">App</a><a href="/stocks.html">NSE stocks</a><a href="/etfs.html">ETFs</a><a href="/about.html">About and disclaimer</a></nav>
+</div></footer>
+
+<script src="/modules/landing/landing.js"></script>
+</body></html>

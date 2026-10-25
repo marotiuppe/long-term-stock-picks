@@ -118,7 +118,7 @@ def test_chart_endpoint_502_when_yahoo_has_nothing(srv, monkeypatch):
 def test_chart_js_is_served_and_page_loads_it(srv):
     r = urllib.request.urlopen(srv + "/assets/js/chart.js")
     assert r.status == 200 and "javascript" in r.headers["Content-Type"] and b"PriceChart" in r.read()
-    assert b'src="/assets/js/chart.js"' in urllib.request.urlopen(srv + "/").read()
+    assert b'src="/assets/js/chart.js"' in urllib.request.urlopen(srv + "/index.html").read()
 
 
 # ---------- chart.js helpers, run under node ----------

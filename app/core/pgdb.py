@@ -63,6 +63,9 @@ class Result:
     def fetchall(self):
         return list(self._rows)
 
+    def __iter__(self):
+        return iter(self._rows)
+
 
 class PgConnection:
     """Same surface Store uses on sqlite3: execute, executemany, commit, rollback, close. A write opens a transaction that lasts
@@ -96,7 +99,7 @@ class PgConnection:
             cur.execute(sql, tuple(args))
             rows, lastid = [], None
             if cur.description:
-                cur.row_factory = _row_factory(cur)
+                cur.row_factory = _row_factory
                 rows = cur.fetchall()
                 if wants_id and rows:
                     lastid = rows[0][0]

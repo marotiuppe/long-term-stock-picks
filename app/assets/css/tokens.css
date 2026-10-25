@@ -1,6 +1,6 @@
 /* Fresh Teal design system. Three layers: primitive (raw values) > semantic (purpose, switches with theme) > component (per-part).
-   Everything below the token section reads semantic or component tokens only. Light is the default, dark follows
-   prefers-color-scheme unless the user picked a theme (html[data-theme]). */
+   Everything below the token section reads semantic or component tokens only. Dark is the default; light applies only when
+   the user picked it (html[data-theme=light]). */
 
 /* ---------- 1. primitive tokens ---------- */
 :root{
@@ -31,8 +31,8 @@
  --btn-bg:var(--teal-700);--btn-bg-hover:var(--teal-800);--on-btn:#FFFFFF;
  --scrim:rgba(15,20,25,.4);
 }
-/* ---------- semantic tokens: dark (same names, so the components never change) ---------- */
-@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+/* ---------- semantic tokens: dark, the default (same names, so the components never change) ---------- */
+:root:not([data-theme=light]){
  color-scheme:dark;
  --accent:var(--teal-d-400);--accent-hover:var(--teal-d-300);--accent-soft:var(--teal-d-900);--accent-text:var(--teal-d-400);
  --bg:var(--ink-d-950);--card:var(--ink-d-900);--subtle:var(--ink-d-800);--border:var(--ink-d-700);--border-strong:var(--ink-d-500);
@@ -42,7 +42,7 @@
  --neutral-series:#94A3B8;--neutral-series-2:#64748B;
  --shadow:0 1px 3px rgba(0,0,0,.35);--shadow-pop:0 8px 24px rgba(0,0,0,.5);
  --btn-bg:var(--teal-d-400);--btn-bg-hover:var(--teal-d-300);--on-btn:#04201A;--scrim:rgba(0,0,0,.6);
-}}
+}
 :root[data-theme=dark]{
  color-scheme:dark;
  --accent:var(--teal-d-400);--accent-hover:var(--teal-d-300);--accent-soft:var(--teal-d-900);--accent-text:var(--teal-d-400);

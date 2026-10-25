@@ -5,7 +5,7 @@ Method: 5 years of daily adjusted prices (Yahoo, free, delayed). Each stock gets
 The forecast for a score comes from what stocks with a similar score actually did over the next
 10/20/60/126 trading days across the whole universe (volatility-scaled to the stock), so every number on
 the page is an empirical odds figure, not a promise. The page also shows that method's own track record."""
-import bisect, csv, datetime, glob, gzip, html, io, json, zlib, math, os, pickle, re, statistics, threading, time, webbrowser
+import bisect, csv, datetime, glob, gzip, hmac, html, io, json, zlib, math, os, pickle, re, statistics, threading, time, webbrowser
 import urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -137,6 +137,54 @@ def scan_watch(stop, every=SCAN_WATCH_EVERY):
                 start_scan()
         except Exception as e:
             print("scheduled refresh check failed:", type(e).__name__, e)
+
+
+VIEW_FLUSH_EVERY = 30
+BOT_RE = re.compile(r"bot|crawl|spider|slurp|monitor|uptime|pingdom|curl|wget|python-|go-http|headless|preview|facebookexternalhit", re.I)
+_views, _views_lock = {}, threading.Lock()
+
+
+def count_view(path, user_agent=""):
+    """One more view of a page today. Kept in memory and written to the database in batches (a database write per page view is wasteful on a
+    small host). Only the page path and the day are kept: no IP address, no cookie, nothing about the visitor. Obvious bots are not counted."""
+    if BOT_RE.search(user_agent or ""):
+        return
+    with _views_lock:
+        _views[path] = _views.get(path, 0) + 1
+
+
+def today_ist():
+    return datetime.datetime.now(IST).date().isoformat()
+
+
+def flush_views(day=None):
+    """Write the counted views to the database. Counts that could not be written are kept for the next try."""
+    with _views_lock:
+        batch = dict(_views)
+        _views.clear()
+    if not batch:
+        return 0
+    try:
+        return get_store().views_add(day or today_ist(), batch)
+    except Exception as e:
+        with _views_lock:
+            for p, n in batch.items():
+                _views[p] = _views.get(p, 0) + n
+        print("view count not saved:", type(e).__name__, e)
+        return 0
+
+
+def views_watch(stop, every=VIEW_FLUSH_EVERY):
+    while not stop.wait(every):
+        flush_views()
+    flush_views()
+
+
+def stats_allowed(headers):
+    """The stats are shown only to someone who knows STATS_TOKEN (Authorization: Bearer <token>). With no token set they are off."""
+    token = os.environ.get("STATS_TOKEN", "").strip()
+    given = (headers.get("Authorization") or "")[7:].strip() if (headers.get("Authorization") or "").startswith("Bearer ") else ""
+    return bool(token) and hmac.compare_digest(token.encode(), given.encode())
 
 
 def holiday_watch(stop, every=HOLIDAY_CHECK_EVERY):
@@ -1113,8 +1161,19 @@ class H(BaseHTTPRequestHandler):
             body, ctype = json.dumps(rows).encode(), "application/json"
         elif u.path in PAGES:
             body, ctype = page_bytes(PAGES[u.path]), "text/html; charset=utf-8"
+            if not self.head_only:
+                count_view(u.path, self.headers.get("User-Agent"))
         elif u.path in LEGAL_PAGES:
             body, ctype = legal_bytes(u.path), "text/html; charset=utf-8"
+            if not self.head_only:
+                count_view(u.path, self.headers.get("User-Agent"))
+        elif u.path == "/stats.html" and os.environ.get("STATS_TOKEN", "").strip():
+            body, ctype = page_bytes("modules/stats/stats.html"), "text/html; charset=utf-8"
+        elif u.path == "/api/stats":
+            if not stats_allowed(self.headers):
+                return self.reply(404, b"Not found", "text/plain")     # off, or the wrong token: it looks like any other missing page
+            flush_views()
+            body, ctype = json.dumps(get_store().views_summary(today_ist())).encode(), "application/json"
         elif u.path == "/manifest.webmanifest":
             body, ctype = open(os.path.join(HERE, "manifest.webmanifest"), "rb").read(), "application/manifest+json"
         elif u.path in LEGACY_PAGES or STOCK_PAGE_RE.match(u.path):
@@ -1237,6 +1296,7 @@ if __name__ == "__main__":
         holiday_watch(threading.Event())
     threading.Thread(target=startup, daemon=True, name="startup").start()
     threading.Thread(target=scan_watch, args=(threading.Event(),), daemon=True, name="scan-watch").start()
+    threading.Thread(target=views_watch, args=(threading.Event(),), daemon=True, name="views-watch").start()
     if keepalive_url():
         threading.Thread(target=keepalive, args=(threading.Event(), keepalive_url()), daemon=True, name="keepalive").start()
     if HOST == "127.0.0.1":   # local run: open the browser; a server has none

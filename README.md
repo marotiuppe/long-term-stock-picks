@@ -21,6 +21,8 @@ The stock scan itself uses only what ships with Python; the packages are for **S
 
 The first scan of the day downloads 5 years of prices for the whole market and takes a few minutes. Later loads use the cache in `app/cache/`.
 
+The daily refresh runs at **11 pm IST** (`SCAN_HOUR` in `app/server.py`). A background thread in the server starts it by itself once that time has passed on a trading day, so the next morning's data is ready without anyone visiting; between the 3:30 pm close and 11 pm the page shows the previous night's scan. On Windows, `refresh_job.py` can still run it from Task Scheduler; schedule it for 11:05 pm.
+
 **Refresh data** is instant when the prices are already from the latest market close: it says "Already up to date", because Yahoo has nothing newer until the next close. It starts a scan only when a close has passed since the last one (or the saved scan came from older code), shows the scan's progress while it runs, and the Portfolio page updates itself when the scan finishes. The "Re-download anyway" button next to that message forces a full re-download (`/api/scan?force=full`).
 
 ## How it works
@@ -68,6 +70,7 @@ All settings are environment variables. None is required to run locally.
 | `STOCKPICKS_DATA_DIR` | the `app` folder | Folder that holds `data/` and `cache/`. Only needed to put them on a persistent disk |
 | `KEEPALIVE_URL` | Render's public address | Address the app pings every 5 minutes (`/health` is added). Only set on a host that sleeps when idle |
 | `LEGAL_OPERATOR`, `LEGAL_EMAIL`, `LEGAL_JURISDICTION` | placeholders | Filled into the legal pages (`/privacy.html`, `/cookies.html`, `/terms.html`, `/disclaimer.html`). Unset shows a visible placeholder. Optional: `LEGAL_ADDRESS`, `LEGAL_GRIEVANCE` (defaults to the operator), `LEGAL_SEBI_STATUS` (replaces the default "not registered with SEBI" sentence) |
+| `STATS_TOKEN` | unset | Secret that unlocks `/stats.html` and `/api/stats` (page views per page and day). Unset: both answer 404. Make one with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `STOCKPICKS_SECURE_COOKIES` | unset | `1` sends cookies over HTTPS only |
 
 ## Deploy on Render
@@ -87,6 +90,10 @@ Free-tier limits: a free service sleeps after about 15 minutes without a visit, 
 ## Legal pages
 
 `/privacy.html`, `/cookies.html`, `/terms.html` and `/disclaimer.html` are served from `app/modules/legal/` (one layout, one body file per page) and say, in plain words, that the site is for education only, is not a recommendation to buy or sell any stock or ETF, and that we are not responsible for decisions or losses. They describe what the app actually does: the cookies it sets (`uid`, `sid`), the browser settings it saves, what is stored on the server, and which outside services it calls. **If you change any of that, update the pages**; a test fails if a cookie or saved setting is missing from the Cookie Policy. They are plain-language templates, not legal advice: have a lawyer review them before you launch publicly.
+
+## Visit counts
+
+Every page view (the landing page, the app pages and the legal pages; not assets, API calls or obvious bots) adds one to a counter for that page and day in the `page_views` table. Only the path and the day are stored: no IP address, cookie or visitor, so the counts are anonymous and need no cookie banner. Counts are kept in memory and written in batches every 30 seconds, so a restart can lose up to that much. To read them, set `STATS_TOKEN`, open `/stats.html` and enter the token (or `curl -H "Authorization: Bearer <token>" https://your-site/api/stats`). The Privacy Policy says this; if you change what is counted, change it too.
 
 ## Accounts and sign-in
 

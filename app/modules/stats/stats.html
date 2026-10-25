@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0F1419">
+<title>Visits | Long-Term Stock Picks</title>
+<link rel="stylesheet" href="/assets/css/tokens.css"><link rel="stylesheet" href="/modules/landing/landing.css"><link rel="stylesheet" href="/modules/stats/stats.css">
+<script>try { if (localStorage.getItem('theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}</script>
+</head><body>
+<header class="top"><div class="wrap bar">
+  <a class="brand" href="/index.html"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7 13.5 15.5l-5-5L2 17"/><path d="M16 7h6v6"/></svg></span><span>Stock picks</span></a>
+  <div class="bar-end"><a class="btn btn-ghost btn-sm" href="/index.html">Back to the app</a></div>
+</div></header>
+
+<main class="wrap st">
+  <h1>Visits</h1>
+  <p class="muted">Page views per page and day. The count keeps only the page and the day: no IP address, cookie or visitor is stored. Bots are left out.</p>
+
+  <form id="gate" class="gate" autocomplete="off">
+    <label for="tok">Stats token</label>
+    <div class="gate-row"><input id="tok" type="password" required autocomplete="off" spellcheck="false"><button class="btn" type="submit">Show</button></div>
+    <p id="err" class="err" role="alert" hidden></p>
+  </form>
+
+  <section id="out" hidden>
+    <div class="cards3" id="cards"></div>
+    <h2>Last <span id="nd">30</span> days</h2>
+    <div id="days" class="days"></div>
+    <h2>Pages</h2>
+    <div class="tbl"><table><thead><tr><th>Page</th><th class="cnt">Views</th></tr></thead><tbody id="pages"></tbody></table></div>
+    <p class="muted" id="since"></p>
+  </section>
+</main>
+<script src="/modules/stats/stats.js"></script>
+</body></html>

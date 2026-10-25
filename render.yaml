@@ -27,3 +27,5 @@ services:
         sync: false
       - key: LEGAL_ADDRESS       # optional postal address
         sync: false
+      - key: STATS_TOKEN         # secret that unlocks /stats.html (page-view counts). Leave unset to switch the stats off.
+        sync: false

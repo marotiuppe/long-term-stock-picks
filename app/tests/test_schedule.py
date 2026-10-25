@@ -6,10 +6,28 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import refresh_job, server
 
 IST = server.IST
+H = server.SCAN_HOUR          # the refresh hour comes from the code, so changing it needs no test edit
 
 
-def at(y, m, d, h, mi=0):
-    return datetime.datetime(y, m, d, h, mi, tzinfo=IST)
+def last_friday(today=None):
+    """The most recent Friday before today. The dates below are built from it, so nothing is a fixed calendar date; the weekday rules
+    (weekends are skipped) only need known weekdays, and these are computed."""
+    d = today or datetime.date.today()
+    return d - datetime.timedelta(days=(d.weekday() - 4) % 7 or 7)
+
+
+DAY = datetime.timedelta(days=1)
+FRI = last_friday()
+THU, SAT, MON = FRI - DAY, FRI + DAY, FRI + 3 * DAY
+ASOF = FRI.isoformat()        # the date of the newest price bar in the canned scans
+
+
+def at(day, h, mi=0):
+    return datetime.datetime(day.year, day.month, day.day, h, mi, tzinfo=IST)
+
+
+def cutoff(day):
+    return at(day, H)
 
 
 @pytest.fixture(autouse=True)
@@ -18,26 +36,81 @@ def weekdays_only(monkeypatch):
     monkeypatch.setattr(server, "_last_auto", [0.0])
 
 
-def test_cutoff_is_the_last_4pm_of_a_trading_day():
-    assert server.last_cutoff(at(2026, 10, 23, 16, 0)) == at(2026, 10, 23, 16)    # Friday, just after 4 pm
-    assert server.last_cutoff(at(2026, 10, 23, 15, 59)) == at(2026, 10, 22, 16)   # before 4 pm: yesterday's
-    assert server.last_cutoff(at(2026, 10, 24, 12)) == at(2026, 10, 23, 16)       # Saturday: Friday's
-    assert server.last_cutoff(at(2026, 10, 26, 9, 30)) == at(2026, 10, 23, 16)    # Monday morning: Friday's
+def test_cutoff_is_the_last_refresh_hour_of_a_trading_day():
+    assert server.last_cutoff(cutoff(FRI)) == cutoff(FRI)                                    # Friday, right at the refresh time
+    assert server.last_cutoff(cutoff(FRI) - datetime.timedelta(minutes=1)) == cutoff(THU)   # a minute before: yesterday's
+    assert server.last_cutoff(at(SAT, 12)) == cutoff(FRI)                                    # Saturday: Friday's
+    assert server.last_cutoff(cutoff(MON) - datetime.timedelta(minutes=1)) == cutoff(FRI)   # Monday, a minute before its refresh: still Friday's
+
+
+@pytest.mark.parametrize("hour", range(24))
+def test_cutoff_switches_exactly_at_the_refresh_hour(hour):
+    expected = cutoff(FRI) if hour >= H else cutoff(THU)
+    assert server.last_cutoff(at(FRI, hour, 30)) == expected
 
 
 def test_holiday_moves_the_cutoff_back(monkeypatch):
-    monkeypatch.setattr(server, "is_td", lambda d: d.weekday() < 5 and d != datetime.date(2026, 10, 22))
-    assert server.last_cutoff(at(2026, 10, 22, 18)) == at(2026, 10, 21, 16)
+    monkeypatch.setattr(server, "is_td", lambda d: d.weekday() < 5 and d != THU)
+    assert server.last_cutoff(at(THU, H, 30)) == cutoff(THU - DAY)                          # Thursday is a holiday: Wednesday's
 
 
 def test_scan_is_current_only_if_made_after_the_cutoff():
-    now = at(2026, 10, 23, 17)
-    assert server.scan_is_current(at(2026, 10, 23, 16, 5).timestamp(), now)
-    assert not server.scan_is_current(at(2026, 10, 23, 10).timestamp(), now)   # morning scan has a partial bar
+    now = cutoff(FRI) + datetime.timedelta(minutes=30)
+    assert server.scan_is_current((cutoff(FRI) + datetime.timedelta(minutes=5)).timestamp(), now)
+    assert not server.scan_is_current((cutoff(FRI) - datetime.timedelta(minutes=5)).timestamp(), now)   # made before the refresh time: stale
+
+
+class Ticks:
+    """A stop event whose wait() returns False for the first n calls (n scheduler ticks), then True."""
+    def __init__(self, n):
+        self.n = n
+
+    def wait(self, _):
+        self.n -= 1
+        return self.n < 0
+
+
+@pytest.fixture
+def watch(monkeypatch):
+    started = []
+    monkeypatch.setattr(server, "start_scan", lambda force=False: started.append(1))
+    monkeypatch.setattr(server, "load_scan", lambda: False)
+    server.STATE.update(running=False)
+    return started
+
+
+def test_scan_watch_starts_the_refresh_when_the_scan_is_stale(watch, monkeypatch):
+    monkeypatch.setattr(server, "scan_up_to_date", lambda: False)
+    server.scan_watch(Ticks(1))
+    assert watch == [1]
+
+
+def test_scan_watch_does_not_hammer_a_failing_scan(watch, monkeypatch):
+    monkeypatch.setattr(server, "scan_up_to_date", lambda: False)
+    server.scan_watch(Ticks(5))                                  # five ticks inside one retry pause: one start
+    assert watch == [1]
+
+
+def test_scan_watch_starts_nothing_when_up_to_date_or_already_running(watch, monkeypatch):
+    monkeypatch.setattr(server, "scan_up_to_date", lambda: True)
+    server.scan_watch(Ticks(3))
+    monkeypatch.setattr(server, "scan_up_to_date", lambda: False)
+    server.STATE.update(running=True)
+    server.scan_watch(Ticks(3))
+    server.STATE.update(running=False)
+    assert watch == []
+
+
+def test_scan_watch_survives_an_error(watch, monkeypatch):
+    def boom():
+        raise OSError("db down")
+    monkeypatch.setattr(server, "load_scan", boom)
+    server.scan_watch(Ticks(2))                                  # must not raise
+    assert watch == []
 
 
 def test_saved_scan_round_trips_and_older_memory_is_replaced(monkeypatch):
-    data = {"generated": "x", "v": server.SCAN_VERSION, "quotes": {}, "stocks": [{"symbol": "TCS", "asof": "2026-10-23"}]}
+    data = {"generated": "x", "v": server.SCAN_VERSION, "quotes": {}, "stocks": [{"symbol": "TCS", "asof": ASOF}]}
     monkeypatch.setattr(server, "DETAIL", {"TCS": {"why": [["up", "ok"]]}})
     server.STATE.update(t=1000.0, data=data)
     server.save_scan()
@@ -58,7 +131,7 @@ def test_corrupt_saved_scan_is_ignored(tmp_path):
 def test_api_scan_serves_a_current_saved_scan_without_rescanning(monkeypatch):
     started = []
     monkeypatch.setattr(server, "start_scan", lambda force=False: started.append(force))
-    data = {"generated": "x", "v": server.SCAN_VERSION, "stocks": [{"symbol": "TCS", "asof": "2026-10-23"}]}
+    data = {"generated": "x", "v": server.SCAN_VERSION, "stocks": [{"symbol": "TCS", "asof": ASOF}]}
     server.STATE.update(t=time.time(), data=data, running=False, error=None)
     monkeypatch.setattr(server, "scan_is_current", lambda t, now=None: True)
     assert server.api_scan(False)["status"] == "ready" and started == []
@@ -68,7 +141,7 @@ def test_api_scan_serves_a_current_saved_scan_without_rescanning(monkeypatch):
 def test_stale_scan_is_shown_and_refreshed_once_then_backs_off(monkeypatch):
     started = []
     monkeypatch.setattr(server, "start_scan", lambda force=False: started.append(force))
-    data = {"generated": "x", "stocks": [{"symbol": "TCS", "asof": "2026-10-23"}]}
+    data = {"generated": "x", "stocks": [{"symbol": "TCS", "asof": ASOF}]}
     server.STATE.update(t=1.0, data=data, running=False, error=None)
     monkeypatch.setattr(server, "scan_is_current", lambda t, now=None: False)
     assert server.api_scan(False)["status"] == "ready"      # old data is still shown straight away
@@ -103,7 +176,7 @@ def job(monkeypatch, tmp_path):
 
 def test_job_skips_a_non_trading_day(job, monkeypatch):
     run, log = job
-    calls = run("2026-10-23")
+    calls = run(ASOF)
     monkeypatch.setattr(server, "is_td", lambda d: False)
     assert refresh_job.main() == 0 and calls == [] and "not a trading day" in log()
 
@@ -133,7 +206,7 @@ def _current(monkeypatch, v=None, **extra):
     monkeypatch.setattr(server, "start_scan", lambda force=False: started.append(force))
     monkeypatch.setattr(server, "scan_is_current", lambda t, now=None: True)
     monkeypatch.setattr(server, "force_allowed", lambda: True)
-    data = {"generated": "x", "v": server.SCAN_VERSION if v is None else v, "stocks": [{"symbol": "TCS", "asof": "2026-10-23"}], "quotes": {}, **extra}
+    data = {"generated": "x", "v": server.SCAN_VERSION if v is None else v, "stocks": [{"symbol": "TCS", "asof": ASOF}], "quotes": {}, **extra}
     server.STATE.update(t=time.time(), data=data, running=False, error=None, phase="", done=0, total=1)
     return started
 
@@ -199,7 +272,7 @@ def test_quotes_are_rebuilt_from_the_saved_download_for_a_scan_that_lacks_them(t
     cache = tmp_path / "cache"
     cache.mkdir()
     pickle.dump({"^NSEI": rows(20000), "TCS": rows(4000), "SBL": rows(1.55, n=300), "OLD": rows(9, last=today - datetime.timedelta(days=30))},
-                open(cache / "rows-2026-10-24.pkl", "wb"))
+                open(cache / f"rows-{today.isoformat()}.pkl", "wb"))
     monkeypatch.setattr(server, "CACHE_DIR", str(cache))
     data = {"stocks": [{"symbol": "TCS"}]}
     server.backfill_quotes(data)

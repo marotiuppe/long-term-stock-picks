@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS notes(user_id TEXT NOT NULL, symbol TEXT NOT NULL, te
 CREATE TABLE IF NOT EXISTS price_alerts(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, symbol TEXT NOT NULL,
   kind TEXT NOT NULL, value REAL NOT NULL, created TEXT, last_fired TEXT, active INTEGER NOT NULL DEFAULT 1);
 CREATE INDEX IF NOT EXISTS price_alerts_user ON price_alerts(user_id, symbol);
+CREATE TABLE IF NOT EXISTS page_views(day TEXT NOT NULL, path TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(day, path));
 CREATE TABLE IF NOT EXISTS blobs(name TEXT PRIMARY KEY, saved REAL NOT NULL, value BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS price_cache(symbol TEXT PRIMARY KEY, fetched REAL NOT NULL, why TEXT, quote TEXT, bars BLOB);
 """
@@ -717,6 +718,32 @@ class Store:
             return (zlib.decompress(bytes(r[0]["value"])), r[0]["saved"]) if r else None
         except Exception:
             return None
+
+    # anonymous page-view counters: a number per page per day. No IP address, cookie, user or anything else that identifies a visitor.
+    def views_add(self, day, counts):
+        """counts: {path: number of views} to add to that day."""
+        rows = [(str(day), str(p)[:100], int(n)) for p, n in counts.items() if int(n) > 0]
+        if not rows:
+            return 0
+        with self._lock:
+            try:
+                self.db.executemany("INSERT INTO page_views(day, path, views) VALUES(?,?,?) "
+                                    "ON CONFLICT(day, path) DO UPDATE SET views = page_views.views + excluded.views", rows)
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+        return len(rows)
+
+    def views_summary(self, today, days=30):
+        """Totals for the stats page: all-time, today, the last `days` days (newest first) and the pages by views."""
+        first = (datetime.date.fromisoformat(today) - datetime.timedelta(days=days - 1)).isoformat()
+        total = self._all("SELECT COALESCE(SUM(views), 0) AS n, MIN(day) AS since FROM page_views")[0]
+        by_day = self._all("SELECT day, SUM(views) AS views FROM page_views WHERE day>=? GROUP BY day ORDER BY day DESC", (first,))
+        by_page = self._all("SELECT path, SUM(views) AS views FROM page_views WHERE day>=? GROUP BY path ORDER BY views DESC, path", (first,))
+        return {"total": int(total["n"]), "since": total["since"], "today": int(next((r["views"] for r in by_day if r["day"] == today), 0)),
+                "days": days, "byDay": [{"day": r["day"], "views": int(r["views"])} for r in by_day],
+                "byPage": [{"path": r["path"], "views": int(r["views"])} for r in by_page]}
 
     def price_clear(self):
         self._run("DELETE FROM price_cache")

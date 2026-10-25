@@ -18,3 +18,12 @@ services:
         sync: false
       - key: STOCKPICKS_SECRET_KEY   # encrypts saved Groww keys; generate once (see README) and keep it
         sync: false
+      # Shown on the Privacy Policy, Terms, Cookie Policy and Disclaimer. Fill these in the Render dashboard before you share the site.
+      - key: LEGAL_OPERATOR      # your name or company
+        sync: false
+      - key: LEGAL_EMAIL         # contact and grievance email
+        sync: false
+      - key: LEGAL_JURISDICTION  # city and state for the courts clause, for example "Pune, Maharashtra"
+        sync: false
+      - key: LEGAL_ADDRESS       # optional postal address
+        sync: false

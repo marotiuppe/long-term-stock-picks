@@ -1,0 +1,24 @@
+/* Legal pages: readable long-form text on top of landing.css (header, buttons, footer) and the theme tokens. */
+.doc-wrap{padding:40px 0 72px}
+.doc{max-width:780px}
+.doc h1{font-size:clamp(30px,4.4vw,42px);margin:0 0 6px}
+.doc-meta{margin:0 0 28px;color:var(--text-muted);font-size:14px}
+.doc h2{margin:40px 0 10px;font-size:22px;letter-spacing:-.01em}
+.doc h3{margin:24px 0 6px;font-size:17px}
+.doc p,.doc li{color:var(--text);font-size:16px;line-height:1.7}
+.doc p{margin:0 0 14px}
+.doc ul,.doc ol{margin:0 0 16px;padding-left:22px}
+.doc li{margin-bottom:6px}
+.doc .lede{font-size:18px;color:var(--text-muted)}
+.doc .note{margin:20px 0;padding:16px 18px;border:1px solid var(--border-strong);border-left:4px solid var(--warning);border-radius:var(--radius);background:var(--card)}
+.doc .note p:last-child{margin-bottom:0}
+.doc .tbl{overflow-x:auto;margin:0 0 20px;border:1px solid var(--border);border-radius:var(--radius)}
+.doc table{width:100%;border-collapse:collapse;font-size:14.5px;min-width:560px}
+.doc th,.doc td{padding:10px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border)}
+.doc th{background:var(--card);font-weight:600;white-space:nowrap}
+.doc tr:last-child td{border-bottom:0}
+.doc code{padding:1px 6px;border-radius:6px;background:var(--subtle);font-size:.92em}
+.doc .toc{margin:0 0 28px;padding:16px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+.doc .toc ol{margin:0;columns:2;column-gap:32px}
+.doc .toc li{font-size:15px;margin-bottom:4px;break-inside:avoid}
+@media(max-width:640px){.doc .toc ol{columns:1}.doc-wrap{padding-top:24px}}

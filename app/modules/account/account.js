@@ -48,7 +48,7 @@
   // ---------- browser part ----------
   var DOCS = 'https://groww.in/trade-api/docs/python-sdk';
   var SAFETY = 'Read-only: this app only asks Groww for your holdings and never places or changes an order. Groww API keys may be allowed to trade, so keep yours private. ' +
-    'They are stored encrypted on this computer.';
+    'They are stored encrypted on the server.';
   var S = { me: null, vm: viewModel(null), tab: 'signin', loading: true, busy: false, failed: false };
   var app = document.getElementById('app');
   function E(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -83,7 +83,7 @@
     return '<p class="lf-n">' + E(SAFETY) + '</p>' +
       '<p class="lf-n">Create the key on the Groww Cloud API Keys page. With the key-and-secret method Groww asks you to approve it there each day, so approve it before you sign in. A paid Groww Trading API subscription is needed. <a href="' + DOCS + '" target="_blank" rel="noopener">How the Groww API works</a>.</p>' +
       field(p + '-key', 'Groww API key', 'password', 'off', 'spellcheck="false"') + field(p + '-sec', 'Groww API secret', 'password', 'off', 'spellcheck="false"') +
-      '<label class="ac-chk"><input type="checkbox" id="' + p + '-rem" checked> Remember on this computer</label>';
+      '<label class="ac-chk"><input type="checkbox" id="' + p + '-rem" checked> Remember on this device</label>';
   }
 
   // ---------- views ----------
@@ -104,6 +104,7 @@
         '<p class="lf-n">3 to 32 characters: letters, digits, dot, underscore, hyphen. Not case-sensitive.</p>' +
         pwField('su-pass', 'Password', 'new-password') + rulesList('su') + pwField('su-conf', 'Confirm password', 'new-password') + msgs('su') +
         '<p class="ac-note">There is no password reset by email in this app. If you forget your password, the only way back in is Sign in with Groww, and only if you linked Groww to this account. Link Groww after you sign up, or keep your password somewhere safe.</p>' +
+        '<p class="ac-note">By creating an account you agree to the <a href="/terms.html">Terms of Use</a> and the <a href="/privacy.html">Privacy Policy</a>, and you understand this site is for education only and is not investment advice.</p>' +
         '<div class="lf-act"><button type="submit" class="btn pri">Create account</button></div></form>';
     } else {
       panel = '<form class="lf" id="f-groww" novalidate>' +
@@ -111,7 +112,7 @@
         '<div class="lf-act"><button type="submit" class="btn pri">Sign in with Groww</button></div></form>';
     }
     return head('Sign in to keep your portfolio, notes and alerts across devices.') + '<div class="ac">' +
-      card('You are using the app as a guest', '', '<p>You are using the app as a guest. Your portfolio, notes and alerts are stored in this browser only. Create an account to keep them and use them on other devices. Existing data in this browser is kept when you sign up.</p>') +
+      card('You are using the app as a guest', '', '<p>You are using the app as a guest. Your portfolio, notes and alerts are saved on the server and linked to a cookie in this browser, so clearing cookies loses access to them. Create an account to keep them and use them on other devices. Existing data in this browser is kept when you sign up.</p>') +
       '<section class="card"><div class="card-b lf"><div class="seg" role="group" aria-label="Choose how to sign in">' +
       tabs.map(function (x) { return '<button type="button" class="tab' + (x[0] === t ? ' on' : '') + '" data-tab="' + x[0] + '" aria-pressed="' + (x[0] === t) + '">' + x[1] + '</button>'; }).join('') +
       '</div>' + panel + '</div></section></div>';

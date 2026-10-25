@@ -6,7 +6,7 @@
   function E(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var DOCS = 'https://groww.in/trade-api/docs/python-sdk';
   var SAFETY = 'Read-only: this app only asks Groww for your holdings and never places or changes an order. Groww API keys may be allowed to trade, so keep yours private. ' +
-    'Your key and secret are stored encrypted on the computer that runs this app and are never shown again. You can forget them at any time.';
+    'Your key and secret are stored encrypted on the server and are never shown again. You can forget them at any time.';
 
   function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 
@@ -65,7 +65,7 @@
           '<p class="lf-n">Create the key on the Groww Cloud API Keys page. With the key-and-secret method Groww asks you to approve it there each day, so approve it before you sync. A Groww Trading API subscription is needed. <a href="' + DOCS + '" target="_blank" rel="noopener">How the Groww API works</a>.</p>' +
           '<div class="lf-f"><label for="gw-k">Groww API key</label><input id="gw-k" class="lf-in" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" required></div>' +
           '<div class="lf-f"><label for="gw-s">Groww API secret</label><input id="gw-s" class="lf-in" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" required></div>' +
-          '<label class="lf-rad"><input type="checkbox" id="gw-r" checked> Remember them on this computer so I only enter them once</label>' +
+          '<label class="lf-rad"><input type="checkbox" id="gw-r" checked> Remember them (stored encrypted) so I only enter them once</label>' +
           '<p class="lf-err" id="gw-e" role="alert"></p>' +
           '<div class="lf-act"><button type="button" class="btn" data-x>Cancel</button>' + (saved ? '<button type="button" class="btn" id="gw-back">Use the saved key</button>' : '') + '<button class="btn pri" type="submit" id="gw-go">Sync holdings</button></div></form>';
         var f = root.querySelector('#gw-f'), er = root.querySelector('#gw-e'), go = root.querySelector('#gw-go');

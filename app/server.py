@@ -5,7 +5,7 @@ Method: 5 years of daily adjusted prices (Yahoo, free, delayed). Each stock gets
 The forecast for a score comes from what stocks with a similar score actually did over the next
 10/20/60/126 trading days across the whole universe (volatility-scaled to the stock), so every number on
 the page is an empirical odds figure, not a promise. The page also shows that method's own track record."""
-import bisect, csv, datetime, glob, io, json, math, os, pickle, re, statistics, threading, time, webbrowser
+import bisect, csv, datetime, glob, html, io, json, math, os, pickle, re, statistics, threading, time, webbrowser
 import urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -843,7 +843,8 @@ PAGES = {"/": "modules/landing/landing.html", "/index.html": _HOME, "/stocks.htm
          "/bse.html": _STOCKS + "bse.html", "/portfolio.html": "modules/portfolio/portfolio.html", "/about.html": "modules/about/about.html",
          "/stock.html": "modules/stock/stock.html", "/settings.html": "modules/settings/settings.html", "/account.html": "modules/account/account.html"}
 LEGACY_PAGES = {"/stocks": "/stocks.html", "/etfs": "/etfs.html", "/portfolio": "/portfolio.html", "/bse": "/bse.html",
-                "/about": "/about.html", "/settings": "/settings.html", "/account": "/account.html"}   # the old single-page URLs, kept so bookmarks still work
+                "/about": "/about.html", "/settings": "/settings.html", "/account": "/account.html",
+                "/privacy": "/privacy.html", "/cookies": "/cookies.html", "/terms": "/terms.html", "/disclaimer": "/disclaimer.html"}   # the old single-page URLs, kept so bookmarks still work
 STOCK_PAGE_RE = re.compile(r"^/stock/([A-Za-z0-9&.^%-]{1,40})/?$")
 ASSET_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml"}
 ASSET_DIRS = {"css": {".css"}, "js": {".js"}, "icons": {".png", ".svg"}}
@@ -895,6 +896,29 @@ def health():
 
 _page = {}
 _page_lock = threading.Lock()
+
+
+LEGAL_UPDATED = "25 October 2026"
+LEGAL_PAGES = {"/privacy.html": ("Privacy Policy", "privacy"), "/cookies.html": ("Cookie Policy", "cookies"),
+               "/terms.html": ("Terms of Use", "terms"), "/disclaimer.html": ("Disclaimer", "disclaimer")}
+
+
+def legal_bytes(path):
+    """A legal page: modules/legal/layout.html around <name>.body.html, with the operator's details filled in. The details come from the
+    environment (LEGAL_OPERATOR, LEGAL_EMAIL, LEGAL_ADDRESS, LEGAL_GRIEVANCE, LEGAL_JURISDICTION, LEGAL_SEBI_STATUS); an unset one shows a
+    visible placeholder so nobody publishes the pages without them."""
+    title, name = LEGAL_PAGES[path]
+    env = lambda k, d: html.escape(os.environ.get(k, "").strip() or d)
+    operator = env("LEGAL_OPERATOR", "the operator of this website")
+    vals = {"title": html.escape(title), "updated": LEGAL_UPDATED, "operator": operator,
+            "email": env("LEGAL_EMAIL", "[contact email not set: set LEGAL_EMAIL]"),
+            "address": env("LEGAL_ADDRESS", ""),
+            "grievance": env("LEGAL_GRIEVANCE", operator),
+            "jurisdiction": env("LEGAL_JURISDICTION", "[city and state not set: set LEGAL_JURISDICTION]"),
+            "sebi": env("LEGAL_SEBI_STATUS", "This service is not registered with SEBI as an investment adviser or a research analyst.")}
+    body = page_bytes(f"modules/legal/{name}.body.html").decode("utf-8")
+    page = page_bytes("modules/legal/layout.html").decode("utf-8").replace("{{body}}", body)
+    return re.sub(r"\{\{(\w+)\}\}", lambda m: vals.get(m.group(1), m.group(0)), page).encode("utf-8")
 
 
 def page_bytes(name="index.html"):
@@ -1015,6 +1039,8 @@ class H(BaseHTTPRequestHandler):
             body, ctype = json.dumps(rows).encode(), "application/json"
         elif u.path in PAGES:
             body, ctype = page_bytes(PAGES[u.path]), "text/html; charset=utf-8"
+        elif u.path in LEGAL_PAGES:
+            body, ctype = legal_bytes(u.path), "text/html; charset=utf-8"
         elif u.path == "/manifest.webmanifest":
             body, ctype = open(os.path.join(HERE, "manifest.webmanifest"), "rb").read(), "application/manifest+json"
         elif u.path in LEGACY_PAGES or STOCK_PAGE_RE.match(u.path):

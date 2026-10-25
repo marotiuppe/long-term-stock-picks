@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0F1419"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Stock picks"><meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>{{title}} | Long-Term Stock Picks</title>
+<meta name="description" content="{{title}} for Long-Term Stock Picks.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"><noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+<link rel="stylesheet" href="/assets/css/tokens.css"><link rel="stylesheet" href="/modules/landing/landing.css"><link rel="stylesheet" href="/modules/legal/legal.css">
+<script>/* the saved theme before first paint; dark unless light was chosen */
+try { if (localStorage.getItem('theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}
+</script>
+</head><body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top"><div class="wrap bar">
+  <a class="brand" href="/" aria-label="Stock picks, home"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7 13.5 15.5l-5-5L2 17"/><path d="M16 7h6v6"/></svg></span><span>Stock picks</span></a>
+  <nav class="links" aria-label="Legal pages"><a href="/privacy.html">Privacy</a><a href="/cookies.html">Cookies</a><a href="/terms.html">Terms</a><a href="/disclaimer.html">Disclaimer</a></nav>
+  <div class="bar-end"><a class="btn btn-sm" href="/index.html">Open the app</a></div>
+</div></header>
+
+<main id="main" class="doc-wrap"><article class="wrap doc">
+  <p class="doc-meta">Last updated {{updated}}</p>
+  {{body}}
+</article></main>
+
+<footer class="foot"><div class="wrap foot-in">
+  <p>For education only. Not investment advice and not a recommendation to buy or sell any stock or ETF. We are not responsible for your decisions.</p>
+  <nav aria-label="Footer"><a href="/index.html">App</a><a href="/privacy.html">Privacy</a><a href="/cookies.html">Cookies</a><a href="/terms.html">Terms</a><a href="/disclaimer.html">Disclaimer</a><a href="/about.html">About</a></nav>
+</div></footer>
+</body></html>

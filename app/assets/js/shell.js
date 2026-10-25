@@ -311,7 +311,7 @@
           '<div class="pop" id="pop" role="menu" aria-label="Account" hidden></div>' +
         '</header>' +
         '<div class="w"><div class="status"><div class="load" id="meta" role="status" aria-live="polite"><i></i>Starting…</div></div>' +
-          '<footer><div class="ft">Educational tool, not investment advice. <a href="/about.html">Data, method and full disclaimer</a>.</div></footer></div>' +
+          '<footer><div class="ft">For education only. Not investment advice and not a recommendation to buy or sell any stock or ETF; we are not responsible for your decisions. <a href="/disclaimer.html">Disclaimer</a> · <a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a> · <a href="/cookies.html">Cookies</a> · <a href="/about.html">Data and method</a></div></footer></div>' +
       '</div>' +
       '<nav class="bnav" id="bnav" aria-label="Main">' +
         Object.keys(BN).map(function (p) { var n = navItem(p); return '<a href="' + n[1] + '" data-p="' + p + '" aria-label="' + n[2] + '"><span class="pill">' + icon(n[3]) + '</span><span class="lb">' + BN[p] + '</span></a>'; }).join('') +

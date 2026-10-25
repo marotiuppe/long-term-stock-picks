@@ -255,7 +255,7 @@
     ['pf-paste', 'pf-wl'].forEach(function (id) { var e = $(id); if (e) keep[id] = e.value; });
     body.textContent = '';
     if (S.unavailable || !S.me) {
-      var u = card('Portfolio is unavailable', 'The portfolio service did not answer. Your data is stored on this computer and is not affected.');
+      var u = card('Portfolio is unavailable', 'The portfolio service did not answer. Your data is stored on the server and is not affected.');
       u.body.appendChild(el('p', { class: 'pf-empty', role: 'status' }, 'Portfolio is unavailable'));
       u.body.appendChild(btn('Retry', '', load));
       body.appendChild(u);
@@ -290,7 +290,7 @@
 
     var g2 = el('div', { class: 'grid pf-g' });
     // (d) paste import, export, import
-    var fc = card('Add, import and export', 'Your data stays on this computer. Export a copy whenever you like.', 'span-6 pf-io');
+    var fc = card('Add, import and export', 'Your data is stored on the server under your account or browser cookie. Export a copy whenever you like.', 'span-6 pf-io');
     var row = el('div', { class: 'pf-data' });
     kid(row, el('a', { class: 'btn', href: '/api/export.csv', download: 'my-transactions.csv' }, 'Export transactions (CSV)'),
       el('a', { class: 'btn', href: '/api/export', download: 'my-portfolio.json' }, 'Export everything (JSON)'),
@@ -376,7 +376,7 @@
     kid(g3, alc);
 
     // (f) delete
-    var dc = card('Your data', 'Stored on this computer. Read-only: this page never places orders and never asks for broker passwords.', 'span-6');
+    var dc = card('Your data', 'Stored on the server, under your account or browser cookie. Read-only: this page never places orders and never asks for broker passwords.', 'span-6');
     var dw = el('div', { class: 'pf-data' });
     dw.appendChild(btn('Delete my data', 'danger', function () {
       if (!window.confirm('Delete all your holdings, transactions, watchlist, alerts and settings? This cannot be undone.')) return;

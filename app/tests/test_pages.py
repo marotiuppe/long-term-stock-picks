@@ -181,3 +181,60 @@ def test_manifest_colors_match_the_dark_default():
     import json
     m = json.load(open(os.path.join(APP, "manifest.webmanifest"), encoding="utf-8"))
     assert m["background_color"] == "#0F1419" and m["theme_color"] == "#0F1419"
+
+
+LEGAL = ["/privacy.html", "/cookies.html", "/terms.html", "/disclaimer.html"]
+
+
+@pytest.mark.parametrize("path", LEGAL)
+def test_legal_pages_are_served_with_the_operator_details_or_a_visible_placeholder(base, monkeypatch, path):
+    for k in ("LEGAL_OPERATOR", "LEGAL_EMAIL", "LEGAL_JURISDICTION", "LEGAL_GRIEVANCE", "LEGAL_ADDRESS", "LEGAL_SEBI_STATUS"):
+        monkeypatch.delenv(k, raising=False)
+    st, h, body = get(base + path)
+    t = body.decode()
+    assert st == 200 and "text/html" in h["Content-Type"] and "{{" not in t, path        # every token is filled
+    assert 'rel="manifest" href="/manifest.webmanifest"' in t and "viewport-fit=cover" in t
+    assert "set LEGAL_EMAIL" in t                                                         # unset: a visible placeholder, not a blank
+    monkeypatch.setenv("LEGAL_EMAIL", "privacy@example.com")
+    monkeypatch.setenv("LEGAL_OPERATOR", "Acme <Labs>")
+    t2 = get(base + path)[2].decode()
+    assert "privacy@example.com" in t2 and "set LEGAL_EMAIL" not in t2
+    if path in ("/privacy.html", "/terms.html"):                                          # the pages that name the operator
+        assert "Acme &lt;Labs&gt;" in t2 and "<Labs>" not in t2                           # filled-in text is HTML-escaped
+
+
+def test_every_legal_page_says_it_is_education_only_and_not_a_recommendation(base):
+    for path in ("/disclaimer.html", "/terms.html"):
+        t = get(base + path)[2].decode().lower()
+        assert "we are not recommending that you buy, sell or hold any stock or etf" in t, path
+        assert "not responsible" in t and "education only" in t, path
+    for path in LEGAL:
+        t = get(base + path)[2].decode()
+        assert "not a recommendation to buy or sell any stock or etf" in t.lower(), path      # the footer line
+
+
+def test_legal_pages_link_each_other_and_old_short_urls_redirect(base):
+    for path in LEGAL:
+        t = get(base + path)[2].decode()
+        for other in LEGAL:
+            assert f'href="{other}"' in t, (path, other)
+    for short in ("/privacy", "/cookies", "/terms", "/disclaimer"):
+        import http.client, urllib.parse
+        u = urllib.parse.urlparse(base)
+        c = http.client.HTTPConnection(u.hostname, u.port)
+        c.request("GET", short)
+        r = c.getresponse()
+        assert r.status == 301 and r.getheader("Location") == short + ".html"
+
+
+def test_the_cookie_policy_lists_every_cookie_the_app_sets():
+    import core.api_me as api_me
+    t = open(os.path.join(APP, "modules", "legal", "cookies.body.html"), encoding="utf-8").read()
+    assert f"<code>{api_me.COOKIE}</code>" in t and f"<code>{api_me.SID}</code>" in t
+    js = "".join(open(os.path.join(root, f), encoding="utf-8").read()
+                 for root in (os.path.join(APP, "assets", "js"), os.path.join(APP, "modules", "stock"), os.path.join(APP, "modules", "settings"),
+                              os.path.join(APP, "modules", "portfolio"), os.path.join(APP, "modules", "account"))
+                 for f in os.listdir(root) if f.endswith(".js") and "echarts" not in f)
+    keys = set(re.findall(r"""setItem\(\s*'([A-Za-z]+)'""", js)) | {"calcState"}
+    missing = {k for k in keys if f"<code>{k}</code>" not in t}
+    assert not missing, f"the cookie policy does not mention these saved settings: {missing}"

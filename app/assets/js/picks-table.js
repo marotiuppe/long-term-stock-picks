@@ -28,6 +28,10 @@ function toCsv(L){const r2=n=>Math.round(n*100)/100,pct=n=>r2(n*100),h=hname(hz)
  return '\ufeff'+[head,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n'}
 function downloadCsv(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([toCsv(list())],{type:'text/csv;charset=utf-8'}));a.download=`${pg=='etfs'?'etf':'stock'}-picks-${hz}-${flt.toLowerCase()}-${D.today}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 /*endcsv*/
+/* Excel: the forecast for the selected period (1D is tomorrow), with a column to type the real closing price into and formulas that check it */
+const HZ_NAME={'1d':'tomorrow','2d':'2 days','5d':'5 days','10d':'10 days','1m':'1 month','3m':'3 months','6m':'6 months'};
+function xlsLabel(){const b=$('xls');if(!b)return;$('xlst').textContent='Excel: '+(HZ_NAME[hz]||hz);b.title=b.ariaLabel='Download the forecast for '+(HZ_NAME[hz]||hz)+' as an Excel sheet, with a column for the real closing price to check it against'}
+function downloadXlsx(){const a=document.createElement('a');a.href='/api/forecast.xlsx?hz='+encodeURIComponent(hz);a.download='';document.body.appendChild(a);a.click();a.remove()}
 /*imp*/
 const nk=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
 const SYMOK=/^[A-Z0-9&-]{1,20}$/,CODEOK=/^[0-9]{5,6}$/,CTRL=/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
@@ -189,7 +193,7 @@ function listPage(c){
    /* Home: the working list (track record, then the table) on the left; what to act on (top picks, attention, allocation) on the right. */
    const body=c.home?`<div class="home-cols"><div class="hc-main">${lead}${tcard}</div><div class="hc-side"><section class="card" id="top"></section><section class="card" id="attn"></section>${side}</div></div>`
     :`<div class="home-cols"><div class="hc-main">${tcard}</div><div class="hc-side">${lead}${side}</div></div>`;
-   $('app').innerHTML=ph(c.h1,c.sub,'<button class="btn" id="csv" type="button" aria-label="Download CSV">'+ic('download','sm')+'<span class="txt">Download CSV</span></button>',TABS)
+   $('app').innerHTML=ph(c.h1,c.sub,'<button class="btn" id="csv" type="button" aria-label="Download CSV">'+ic('download','sm')+'<span class="txt">Download CSV</span></button><button class="btn" id="xls" type="button">'+ic('file-spreadsheet','sm')+'<span class="txt" id="xlst">Excel</span></button>',TABS)
     +'<div class="kpis" id="kpis"></div>'
     +body
     +(c.imp?importBox(c.imp):'');
@@ -197,11 +201,12 @@ function listPage(c){
    bindSet();
    $('q').oninput=e=>{q=e.target.value;pn=0;if(D)table()};
    $('csv').onclick=()=>{if(D)downloadCsv()};
+   $('xls').onclick=downloadXlsx;xlsLabel();
    $('fbtn').onclick=openFilters;
    const dn=$('dn');dn.setAttribute('aria-pressed',dense);dn.classList.toggle('on',dense);$('tb').closest('.tw').classList.toggle('dense',dense);
    dn.onclick=()=>{dense=!dense;try{localStorage.setItem('dense',dense?'1':'0')}catch(e){}dn.setAttribute('aria-pressed',dense);dn.classList.toggle('on',dense);$('tb').closest('.tw').classList.toggle('dense',dense)};
    if(c.imp)impBind();
    if(c.home&&window.Attention)Attention.mountFeed($('attn'));
    if(!window.__mineBound){window.__mineBound=1;document.addEventListener('mine:update',()=>{if(D&&$('tb')){listKpis();table();if(window.renderAlloc)renderAlloc()}})}},
-  update(){tabs();if(c.home){rel();if(window.renderAlloc)renderAlloc()}listKpis();mixCard();topCard();chips();table();if(open&&!DET[open])fetchDet(open)}
+  update(){tabs();xlsLabel();if(c.home){rel();if(window.renderAlloc)renderAlloc()}listKpis();mixCard();topCard();chips();table();if(open&&!DET[open])fetchDet(open)}
  })}

@@ -12,7 +12,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from core import api_me, cachefs, fundamentals, update_holidays
+from core import api_me, cachefs, forecast_xlsx, fundamentals, update_holidays
 from modules.stocks import bhavcopy, lists
 from modules.about import backtest
 from modules.stock import why
@@ -120,6 +120,28 @@ def keepalive(stop, url, every=KEEPALIVE_EVERY, opener=None):
             opener(url)
         except Exception as e:
             print("keep-alive failed:", type(e).__name__, e)
+
+
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_xlsx = {}   # (scan, horizon) -> (file name, bytes): built once per scan, not once per click
+
+
+def forecast_xlsx_file(hz):
+    """(file name, workbook bytes) for the forecast over horizon `hz` from the scan in memory, or None when there is no scan yet. The forecast is
+    the close on the scan date against the close HORIZONS[hz] trading days later, so for "1d" it is tomorrow's close (the next trading day)."""
+    load_scan()
+    d = STATE["data"]
+    if not d or not d.get("stocks"):
+        return None
+    key = (id(d), hz)
+    if key not in _xlsx:
+        asof = max(datetime.date.fromisoformat(s["asof"]) for s in d["stocks"])
+        target = add_td(asof, HORIZONS[hz])
+        if len(_xlsx) >= 8:
+            _xlsx.pop(next(iter(_xlsx)))
+        _xlsx[key] = ("forecast-%s-for-%s.xlsx" % (hz, target.isoformat()),
+                      forecast_xlsx.build(d["stocks"], hz, HORIZONS[hz], target, d.get("generated", "")))
+    return _xlsx[key]
 
 
 SCAN_WATCH_EVERY = 300
@@ -1160,6 +1182,14 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/api/scan":
             qs = urllib.parse.parse_qs(u.query, keep_blank_values=True)
             body, ctype = scan_json(qs), "application/json"
+        elif u.path == "/api/forecast.xlsx":
+            hz = urllib.parse.parse_qs(u.query).get("hz", ["1d"])[0]
+            if hz not in HORIZONS:
+                return self.reply(400, json.dumps({"error": "hz must be one of " + ", ".join(HORIZONS)}).encode(), "application/json")
+            got = forecast_xlsx_file(hz)
+            if not got:
+                return self.reply(503, json.dumps({"error": "The scan is not ready yet. Try again in a few minutes."}).encode(), "application/json")
+            return self.reply(200, got[1], XLSX_TYPE, {"Content-Disposition": 'attachment; filename="%s"' % got[0]})
         elif u.path == "/api/stock":
             sym = urllib.parse.parse_qs(u.query).get("sym", [""])[0]
             if not SYM_RE.fullmatch(sym):

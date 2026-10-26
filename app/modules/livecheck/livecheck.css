@@ -1,0 +1,9 @@
+.lc-stack{display:flex;flex-direction:column;gap:24px;min-width:0}
+.lc-stack>*{min-width:0}
+.lc-note{display:flex;gap:var(--sp-3);align-items:flex-start;padding:var(--sp-4) var(--card-pad);border-left:4px solid var(--warning)}
+.lc-note p{margin:0;line-height:1.6}
+.lc-note .ic{flex:none;margin-top:2px;color:var(--warning-text)}
+.lc-how li{margin-bottom:8px;line-height:1.6}
+.lc-wait{color:var(--text-muted);font-size:var(--fs-14)}
+.lc-seg{margin-bottom:0}
+.tw.lc-tw{overflow-x:auto}   /* the app turns its own tables into cards on a phone; this plain one scrolls inside its card instead */

@@ -50,6 +50,11 @@ CREATE TABLE IF NOT EXISTS notes(user_id TEXT NOT NULL, symbol TEXT NOT NULL, te
 CREATE TABLE IF NOT EXISTS price_alerts(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, symbol TEXT NOT NULL,
   kind TEXT NOT NULL, value REAL NOT NULL, created TEXT, last_fired TEXT, active INTEGER NOT NULL DEFAULT 1);
 CREATE INDEX IF NOT EXISTS price_alerts_user ON price_alerts(user_id, symbol);
+CREATE TABLE IF NOT EXISTS forecast_log(asof TEXT NOT NULL, symbol TEXT NOT NULL, hz TEXT NOT NULL, target TEXT NOT NULL, price REAL NOT NULL,
+  p10 REAL NOT NULL, p50 REAL NOT NULL, p90 REAL NOT NULL, pgain REAL NOT NULL, verdict TEXT, actual REAL, resolved TEXT, PRIMARY KEY(asof, symbol, hz));
+CREATE INDEX IF NOT EXISTS forecast_log_open ON forecast_log(target) WHERE actual IS NULL;
+CREATE TABLE IF NOT EXISTS forecast_stats(asof TEXT NOT NULL, hz TEXT NOT NULL, grp TEXT NOT NULL, n INTEGER NOT NULL, inside INTEGER NOT NULL,
+  rose INTEGER NOT NULL, sum_pgain REAL NOT NULL, sum_change REAL NOT NULL, sum_mid REAL NOT NULL, PRIMARY KEY(asof, hz, grp));
 CREATE TABLE IF NOT EXISTS page_views(day TEXT NOT NULL, path TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(day, path));
 CREATE TABLE IF NOT EXISTS blobs(name TEXT PRIMARY KEY, saved REAL NOT NULL, value BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS price_cache(symbol TEXT PRIMARY KEY, fetched REAL NOT NULL, why TEXT, quote TEXT, bars BLOB);
@@ -744,6 +749,83 @@ class Store:
         return {"total": int(total["n"]), "since": total["since"], "today": int(next((r["views"] for r in by_day if r["day"] == today), 0)),
                 "days": days, "byDay": [{"day": r["day"], "views": int(r["views"])} for r in by_day],
                 "byPage": [{"path": r["path"], "views": int(r["views"])} for r in by_page]}
+
+    # live check: every night's forecasts are saved, then compared with the real close once it is known. Public market data, no user in it.
+    def fc_record(self, rows):
+        """rows: (asof, symbol, hz, target, price, p10, p50, p90, pgain, verdict). A forecast already saved for that day is kept as it is."""
+        rows = list(rows)
+        if not rows:
+            return 0
+        with self._lock:
+            try:
+                self.db.executemany("INSERT INTO forecast_log(asof, symbol, hz, target, price, p10, p50, p90, pgain, verdict) VALUES(?,?,?,?,?,?,?,?,?,?) "
+                                    "ON CONFLICT(asof, symbol, hz) DO NOTHING", rows)
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+        return len(rows)
+
+    def fc_pending(self, upto):
+        """{symbol: [forecast, ...]} for forecasts not yet checked whose target date is on or before `upto` (an ISO date)."""
+        out = {}
+        for r in self._all("SELECT asof, symbol, hz, target, price FROM forecast_log WHERE actual IS NULL AND target<=? ORDER BY symbol, asof", (upto,)):
+            out.setdefault(r["symbol"], []).append(r)
+        return out
+
+    def fc_settle(self, results, today):
+        """results: (asof, symbol, hz, actual or None). None means the symbol has no price for the target date (delisted, suspended): that forecast
+        is dropped. Then the daily totals of every day touched are worked out again from the saved forecasts."""
+        results = list(results)
+        if not results:
+            return 0
+        with self._lock:
+            try:
+                self.db.executemany("UPDATE forecast_log SET actual=?, resolved=? WHERE asof=? AND symbol=? AND hz=? AND actual IS NULL",
+                                    [(a, today, d, s, h) for d, s, h, a in results if a is not None])
+                self.db.executemany("DELETE FROM forecast_log WHERE asof=? AND symbol=? AND hz=? AND actual IS NULL",
+                                    [(d, s, h) for d, s, h, a in results if a is None])
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+        self.fc_recompute({(d, h) for d, _, h, a in results if a is not None})
+        return len(results)
+
+    FC_GROUPS = (("all", ""), ("buy", " AND verdict='BUY'"))
+
+    def fc_recompute(self, pairs):
+        """Daily totals for each (asof, hz) in `pairs`: forecasts checked, how many closed inside the low-to-high range, how many rose, and the sums
+        behind the averages. Two groups: every forecast, and the Buy calls."""
+        for asof, hz in sorted(pairs):
+            for grp, extra in self.FC_GROUPS:
+                r = self._all("SELECT COUNT(*) AS n, "
+                              "SUM(CASE WHEN actual >= price*(1+p10) AND actual <= price*(1+p90) THEN 1 ELSE 0 END) AS inside, "
+                              "SUM(CASE WHEN actual > price THEN 1 ELSE 0 END) AS rose, SUM(pgain) AS sp, SUM(actual/price - 1) AS sc, SUM(p50) AS sm "
+                              "FROM forecast_log WHERE asof=? AND hz=? AND actual IS NOT NULL" + extra, (asof, hz))[0]
+                if not r["n"]:
+                    continue
+                self._run("INSERT INTO forecast_stats(asof, hz, grp, n, inside, rose, sum_pgain, sum_change, sum_mid) VALUES(?,?,?,?,?,?,?,?,?) "
+                          "ON CONFLICT(asof, hz, grp) DO UPDATE SET n=excluded.n, inside=excluded.inside, rose=excluded.rose, sum_pgain=excluded.sum_pgain, "
+                          "sum_change=excluded.sum_change, sum_mid=excluded.sum_mid",
+                          (asof, hz, grp, int(r["n"]), int(r["inside"] or 0), int(r["rose"] or 0), float(r["sp"] or 0), float(r["sc"] or 0), float(r["sm"] or 0)))
+
+    def fc_expire(self, newest_bar, grace_days=10):
+        """Drop forecasts still unchecked long after their target date (the stock stopped trading, or left the scan)."""
+        limit = (datetime.date.fromisoformat(newest_bar) - datetime.timedelta(days=grace_days)).isoformat()
+        return self._run("DELETE FROM forecast_log WHERE actual IS NULL AND target<?", (limit,)).rowcount
+
+    def fc_prune(self, newest_bar, keep_days=45):
+        """Forget the per-stock rows of old, finished days. Their daily totals stay in forecast_stats for good."""
+        limit = (datetime.date.fromisoformat(newest_bar) - datetime.timedelta(days=keep_days)).isoformat()
+        return self._run("DELETE FROM forecast_log WHERE asof<? AND actual IS NOT NULL", (limit,)).rowcount
+
+    def fc_stats(self):
+        return self._all("SELECT asof, hz, grp, n, inside, rose, sum_pgain, sum_change, sum_mid FROM forecast_stats ORDER BY asof DESC, hz, grp")
+
+    def fc_counts(self):
+        """{hz: forecasts saved and waiting for their target date}."""
+        return {r["hz"]: int(r["n"]) for r in self._all("SELECT hz, COUNT(*) AS n FROM forecast_log WHERE actual IS NULL GROUP BY hz")}
 
     def price_clear(self):
         self._run("DELETE FROM price_cache")

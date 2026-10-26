@@ -108,6 +108,10 @@ Free-tier limits: a free service sleeps after about 15 minutes without a visit, 
 
 `/privacy.html`, `/cookies.html`, `/terms.html` and `/disclaimer.html` are served from `app/modules/legal/` (one layout, one body file per page) and say, in plain words, that the site is for education only, is not a recommendation to buy or sell any stock or ETF, and that we are not responsible for decisions or losses. They describe what the app actually does: the cookies it sets (`uid`, `sid`), the browser settings it saves, what is stored on the server, and which outside services it calls. **If you change any of that, update the pages**; a test fails if a cookie or saved setting is missing from the Cookie Policy. They are plain-language templates, not legal advice: have a lawyer review them before you launch publicly.
 
+## Live check
+
+The **Live check** page (`/livecheck.html`) shows how the forecasts did against the real closing prices, with no typing. After every complete day's scan the app saves each stock's forecast for tomorrow, 5 days and 1 month ahead (`forecast_log`). A later scan, which already loads every price history, finds the real close on the target date and settles the forecast. The change is measured on the **adjusted** close, so a split or dividend cannot look like a crash. Per day the app keeps small totals (`forecast_stats`): forecasts checked, how many closed inside the low-to-high range (about 80% promised), how many rose against the forecast chance, and how the Buy calls did against all stocks. Per-stock rows are dropped after 45 days; the totals stay. The page says "too early to tell" until there are at least 500 forecasts over 5 days, and calls a gap out only when it is both statistically clear and at least 3 points. Nothing is saved from a partial day's bar or from old data reused when Yahoo is down, and a problem in this step can never fail a scan. Data comes from `core/livecheck.py` (logic), `core/store.py` (`fc_*` methods) and `/api/live-check`.
+
 ## Excel forecast sheet
 
 The **Excel** button on Home, NSE stocks and ETFs (next to Download CSV) downloads the forecast for the selected period as an `.xlsx` file: pick the **1D** tab and it is tomorrow's forecast (`/api/forecast.xlsx?hz=1d`; `2d`, `5d`, `10d`, `1m`, `3m` and `6m` work too). One row per scanned stock and ETF: last close, the low, middle and high case as a percentage and in rupees, the chance of a rise, and the call. To check it, type the real closing price into the yellow **ACTUAL close** column; the columns beside it work out the real change, whether it landed inside the low-to-high range and whether it rose, and the **Check** sheet adds it all up (about 80% should land inside the range; compare Buy calls with all stocks). The file name carries the forecast date, for example `forecast-1d-for-2026-10-27.xlsx`. The forecast is the close on the scan date against the close that many trading days later. A workbook is built once per scan and reused. Needs `openpyxl`, which is in `requirements.txt`.
@@ -163,6 +167,7 @@ app/
     settings/            settings.html, settings.js
     account/             account.html, auth.py (passwords, sessions), groww.py (Groww API), account.css
     about/               about.html, backtest.py (the track-record report text)
+    livecheck/           livecheck.html, livecheck.js (saved forecasts checked against real closes)
   assets/                shared css (tokens, layout, components, chart), shared js (shell, common, chart, holdings, ...), icons
   tests/                 offline tests
   holidays.json, cache/, data/    data the app reads and writes (not code; cache/ and data/ are git-ignored)

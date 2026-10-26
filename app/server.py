@@ -12,7 +12,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from core import api_me, cachefs, forecast_xlsx, fundamentals, update_holidays
+from core import api_me, cachefs, forecast_xlsx, fundamentals, livecheck, update_holidays
 from modules.stocks import bhavcopy, lists
 from modules.about import backtest
 from modules.stock import why
@@ -878,7 +878,10 @@ def run_scan(force):
                     data[sym] = rows
         pool, scores = build_pool(data, nrows)
         fcst = Forecaster(pool, scores)
-        stocks = sorted((analyse(s, r, nrows, fcst, names.get(s, s), info.get(s)) for s, r in data.items()), key=lambda x: -x["score"])
+        newest_bar = nrows[-1][0].isoformat() if nrows else None
+        pending, settled = live_check_pending(newest_bar), []
+        stocks = sorted((analyse(s, r, nrows, fcst, names.get(s, s), info.get(s)) for s, r in settling(data.items(), pending, settled)),
+                        key=lambda x: -x["score"])
         STATE.update(phase="Reading news", done=0, total=1)
         with ThreadPoolExecutor(8) as ex:
             for s, n in zip(stocks[:40], ex.map(lambda s: news(s["symbol"], s["name"]), stocks[:40])):
@@ -909,6 +912,7 @@ def run_scan(force):
             "holidaysChecked": HOLIDAY_DOC.get("lastCheck"),
             "holidayAlert": update_holidays.stale_alert(HOLIDAY_DOC, today),
             "minPrice": MIN_PRICE, "minValue": MIN_AVG_VALUE}, error=None)
+        live_check_update(stocks, settled, newest_bar, fallback)
         try:
             save_scan()
         except Exception:
@@ -917,6 +921,44 @@ def run_scan(force):
         STATE["error"] = f"{type(e).__name__}: {e}"
     finally:
         STATE["running"] = False
+
+
+def live_check_pending(newest_bar):
+    """Saved forecasts that are due to be checked, {symbol: [forecast]}. Never raises: the live check must not be able to fail a scan."""
+    try:
+        return get_store().fc_pending(newest_bar) if newest_bar else {}
+    except Exception as e:
+        print("live check: could not read saved forecasts:", type(e).__name__, e)
+        return {}
+
+
+def settling(items, pending, out):
+    """Passes (symbol, price history) pairs through unchanged and, for each symbol with forecasts due, adds their results to `out`. The scan
+    loads every history once anyway, so checking the forecasts costs next to nothing extra."""
+    for sym, rows in items:
+        due = pending.get(sym)
+        if due:
+            try:
+                out.extend(livecheck.settle(due, rows))
+            except Exception as e:
+                print("live check: could not settle", sym, type(e).__name__, e)
+        yield sym, rows
+
+
+def live_check_update(stocks, settled, newest_bar, fallback):
+    """After a scan: record the forecasts that have now been checked, drop the unfinishable and the old, and save tonight's forecasts to be checked
+    later. Tonight's are saved only from a complete day's bar, and never from old data reused because Yahoo was unreachable."""
+    try:
+        st = get_store()
+        if settled:
+            st.fc_settle(settled, datetime.date.today().isoformat())
+        if newest_bar:
+            st.fc_expire(newest_bar)
+            st.fc_prune(newest_bar)
+        if not fallback and stocks and livecheck.bar_is_final(max(s["asof"] for s in stocks), datetime.datetime.now(IST)):
+            st.fc_record(livecheck.snapshot_rows(stocks, {hz: HORIZONS[hz] for hz in livecheck.TRACKED}, add_td))
+    except Exception as e:
+        print("live check: not updated:", type(e).__name__, e)
 
 
 def baseline_from(stocks):
@@ -947,9 +989,9 @@ _universe = None
 _HOME, _STOCKS = "modules/home/index.html", "modules/stocks/"
 PAGES = {"/": "modules/landing/landing.html", "/index.html": _HOME, "/stocks.html": _STOCKS + "stocks.html", "/etfs.html": _STOCKS + "etfs.html",
          "/bse.html": _STOCKS + "bse.html", "/portfolio.html": "modules/portfolio/portfolio.html", "/about.html": "modules/about/about.html",
-         "/stock.html": "modules/stock/stock.html", "/settings.html": "modules/settings/settings.html", "/account.html": "modules/account/account.html"}
+         "/stock.html": "modules/stock/stock.html", "/livecheck.html": "modules/livecheck/livecheck.html", "/settings.html": "modules/settings/settings.html", "/account.html": "modules/account/account.html"}
 LEGACY_PAGES = {"/stocks": "/stocks.html", "/etfs": "/etfs.html", "/portfolio": "/portfolio.html", "/bse": "/bse.html",
-                "/about": "/about.html", "/settings": "/settings.html", "/account": "/account.html",
+                "/about": "/about.html", "/livecheck": "/livecheck.html", "/settings": "/settings.html", "/account": "/account.html",
                 "/privacy": "/privacy.html", "/cookies": "/cookies.html", "/terms": "/terms.html", "/disclaimer": "/disclaimer.html"}   # the old single-page URLs, kept so bookmarks still work
 STOCK_PAGE_RE = re.compile(r"^/stock/([A-Za-z0-9&.^%-]{1,40})/?$")
 ASSET_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml"}
@@ -1182,6 +1224,9 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/api/scan":
             qs = urllib.parse.parse_qs(u.query, keep_blank_values=True)
             body, ctype = scan_json(qs), "application/json"
+        elif u.path == "/api/live-check":
+            st = get_store()
+            body, ctype = json.dumps(livecheck.summarize(st.fc_stats(), st.fc_counts())).encode(), "application/json"
         elif u.path == "/api/forecast.xlsx":
             hz = urllib.parse.parse_qs(u.query).get("hz", ["1d"])[0]
             if hz not in HORIZONS:

@@ -13,7 +13,7 @@ APP = os.path.join(os.path.dirname(__file__), "..")
 LANDING = "modules/landing/landing.html"   # served at "/"; it is not an app-shell page
 PAGES = {"/index.html": "modules/home/index.html", "/stocks.html": "modules/stocks/stocks.html",
          "/etfs.html": "modules/stocks/etfs.html", "/bse.html": "modules/stocks/bse.html", "/portfolio.html": "modules/portfolio/portfolio.html",
-         "/about.html": "modules/about/about.html", "/stock.html": "modules/stock/stock.html", "/settings.html": "modules/settings/settings.html",
+         "/about.html": "modules/about/about.html", "/stock.html": "modules/stock/stock.html", "/livecheck.html": "modules/livecheck/livecheck.html", "/settings.html": "modules/settings/settings.html",
          "/account.html": "modules/account/account.html"}
 
 

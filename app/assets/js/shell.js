@@ -123,11 +123,11 @@
   // ---------- shell ----------
   // Desktop and tablet: sidebar + top bar. Phone (768px and below): top app bar + bottom navigation, sheets for More, filters and the
   // account menu, and a full-screen search. Both are built from the same markup; CSS decides which one shows.
-  var NAV = [['home', '/index.html', 'Home', 'house'], ['stocks', '/stocks.html', 'NSE stocks', 'trending-up'], ['etfs', '/etfs.html', 'ETFs', 'layers'],
+  var NAV = [['home', '/index.html', 'Home', 'house'], ['stocks', '/stocks.html', 'NSE stocks', 'trending-up'], ['etfs', '/etfs.html', 'ETFs', 'layers'], ['livecheck', '/livecheck.html', 'Live check', 'circle-check'],
     ['bse', '/bse.html', 'BSE stocks', 'landmark'], ['portfolio', '/portfolio.html', 'Portfolio', 'briefcase'],
     ['account', '/account.html', 'Account', 'user'], ['settings', '/settings.html', 'Settings', 'settings'], ['about', '/about.html', 'About', 'info']];
   var BN = { home: 'Home', stocks: 'Stocks', etfs: 'ETFs', portfolio: 'Portfolio' };   // bottom bar: four destinations plus More
-  var MORE = ['bse', 'account', 'settings', 'about'];
+  var MORE = ['livecheck', 'bse', 'account', 'settings', 'about'];
   var MQ = matchMedia('(max-width:768px)');
   var mounted = false, shell, titleText = '', pageId = '', searchSource = function () { return null; };
 
